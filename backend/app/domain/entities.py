@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from app.domain.enums import NaturezaConta
+from app.domain.enums import MetodoOcr, NaturezaConta, StatusDocumento, StatusLote
 
 
 @dataclass
@@ -40,3 +40,39 @@ class Conta:
             raise ValueError(
                 f"Conta {self.codigo} é uma conta sintética e não pode ser usada em lançamentos."
             )
+
+
+@dataclass
+class Documento:
+    id: int | None
+    empresa_id: int
+    nome_arquivo: str
+    nome_exibicao: str
+    caminho_arquivo: str
+    extensao: str
+    tamanho_bytes: int
+    status: StatusDocumento = StatusDocumento.PENDENTE
+    mensagem_erro: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass
+class OcrResultado:
+    id: int | None
+    documento_id: int
+    texto_extraido: str
+    metodo: MetodoOcr
+    tempo_processamento_ms: int
+    created_at: datetime | None = None
+
+
+@dataclass
+class LoteProcessamento:
+    id: int | None
+    empresa_id: int
+    total_documentos: int
+    documentos_processados: int = 0
+    status: StatusLote = StatusLote.EM_ANDAMENTO
+    created_at: datetime | None = None
+    concluido_em: datetime | None = None
