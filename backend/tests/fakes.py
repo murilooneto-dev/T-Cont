@@ -1,9 +1,14 @@
+from app.application.ports import ArmazenamentoArquivos
 from app.application.repositories import (
     ContaRepository,
+    DocumentoRepository,
     EmpresaRepository,
+    LoteProcessamentoRepository,
+    OcrResultadoRepository,
     PlanoContasRepository,
 )
-from app.domain.entities import Conta, Empresa, PlanoContas
+from app.domain.entities import Conta, Documento, Empresa, LoteProcessamento, OcrResultado, PlanoContas
+from app.domain.enums import StatusDocumento
 
 
 class FakeEmpresaRepository(EmpresaRepository):
@@ -75,3 +80,82 @@ class FakeContaRepository(ContaRepository):
 
     def deletar(self, conta_id: int) -> None:
         self._items.pop(conta_id, None)
+
+
+class FakeDocumentoRepository(DocumentoRepository):
+    def __init__(self):
+        self._items: dict[int, Documento] = {}
+        self._next_id = 1
+
+    def criar(self, documento: Documento) -> Documento:
+        documento.id = self._next_id
+        self._items[self._next_id] = documento
+        self._next_id += 1
+        return documento
+
+    def obter_por_id(self, documento_id: int) -> Documento | None:
+        return self._items.get(documento_id)
+
+    def listar_por_empresa(self, empresa_id: int) -> list[Documento]:
+        return [d for d in self._items.values() if d.empresa_id == empresa_id]
+
+    def listar_pendentes_por_empresa(self, empresa_id: int) -> list[Documento]:
+        return [
+            d for d in self._items.values()
+            if d.empresa_id == empresa_id and d.status == StatusDocumento.PENDENTE
+        ]
+
+    def atualizar(self, documento: Documento) -> Documento:
+        self._items[documento.id] = documento
+        return documento
+
+
+class FakeOcrResultadoRepository(OcrResultadoRepository):
+    def __init__(self):
+        self._items: dict[int, OcrResultado] = {}
+        self._next_id = 1
+
+    def criar(self, resultado: OcrResultado) -> OcrResultado:
+        resultado.id = self._next_id
+        self._items[self._next_id] = resultado
+        self._next_id += 1
+        return resultado
+
+    def obter_por_documento_id(self, documento_id: int) -> OcrResultado | None:
+        return next((r for r in self._items.values() if r.documento_id == documento_id), None)
+
+
+class FakeLoteProcessamentoRepository(LoteProcessamentoRepository):
+    def __init__(self):
+        self._items: dict[int, LoteProcessamento] = {}
+        self._next_id = 1
+
+    def criar(self, lote: LoteProcessamento) -> LoteProcessamento:
+        lote.id = self._next_id
+        self._items[self._next_id] = lote
+        self._next_id += 1
+        return lote
+
+    def obter_por_id(self, lote_id: int) -> LoteProcessamento | None:
+        return self._items.get(lote_id)
+
+    def atualizar(self, lote: LoteProcessamento) -> LoteProcessamento:
+        self._items[lote.id] = lote
+        return lote
+
+
+class FakeArmazenamentoArquivos(ArmazenamentoArquivos):
+    def __init__(self):
+        self._arquivos: dict[str, bytes] = {}
+        self._contador = 0
+
+    def salvar(self, empresa_id: int, nome_original: str, conteudo: bytes) -> tuple[str, str, str]:
+        self._contador += 1
+        extensao = "." + nome_original.rsplit(".", 1)[-1].lower()
+        nome_fisico = f"fake_{self._contador}{extensao}"
+        caminho_relativo = f"empresa_{empresa_id}/documentos/{nome_fisico}"
+        self._arquivos[caminho_relativo] = conteudo
+        return nome_fisico, caminho_relativo, extensao
+
+    def ler(self, caminho_relativo: str) -> bytes:
+        return self._arquivos[caminho_relativo]

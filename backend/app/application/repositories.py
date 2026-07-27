@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from app.domain.entities import Conta, Empresa, PlanoContas
+from app.domain.entities import Conta, Documento, Empresa, LoteProcessamento, OcrResultado, PlanoContas
 
 
 class EmpresaRepository(ABC):
@@ -49,3 +49,39 @@ class ContaRepository(ABC):
 
     @abstractmethod
     def deletar(self, conta_id: int) -> None: ...
+
+
+class DocumentoRepository(ABC):
+    @abstractmethod
+    def criar(self, documento: Documento) -> Documento: ...
+
+    @abstractmethod
+    def obter_por_id(self, documento_id: int) -> Documento | None: ...
+
+    @abstractmethod
+    def listar_por_empresa(self, empresa_id: int) -> list[Documento]: ...
+
+    @abstractmethod
+    def listar_pendentes_por_empresa(self, empresa_id: int) -> list[Documento]: ...
+
+    @abstractmethod
+    def atualizar(self, documento: Documento) -> Documento: ...
+
+
+class OcrResultadoRepository(ABC):
+    @abstractmethod
+    def criar(self, resultado: OcrResultado) -> OcrResultado: ...
+
+    @abstractmethod
+    def obter_por_documento_id(self, documento_id: int) -> OcrResultado | None: ...
+
+
+class LoteProcessamentoRepository(ABC):
+    @abstractmethod
+    def criar(self, lote: LoteProcessamento) -> LoteProcessamento: ...
+
+    @abstractmethod
+    def obter_por_id(self, lote_id: int) -> LoteProcessamento | None: ...
+
+    @abstractmethod
+    def atualizar(self, lote: LoteProcessamento) -> LoteProcessamento: ...

@@ -32,3 +32,18 @@ class ContaNaoEncontrada(DomainError):
 class ImportacaoPlanoContasInvalida(DomainError):
     def __init__(self, motivo: str):
         super().__init__(motivo)
+
+
+class ArquivoInvalido(DomainError):
+    def __init__(self, motivo: str):
+        super().__init__(motivo)
+
+
+class DocumentoNaoEncontrado(DomainError):
+    def __init__(self, documento_id: int):
+        super().__init__(f"Documento {documento_id} não encontrado.")
+
+
+class LoteNaoEncontrado(DomainError):
+    def __init__(self, lote_id: int):
+        super().__init__(f"Lote de processamento {lote_id} não encontrado.")
