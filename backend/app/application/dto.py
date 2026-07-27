@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from app.domain.entities import Documento
+
 
 @dataclass
 class CriarEmpresaDTO:
@@ -36,3 +38,16 @@ class AtualizarContaDTO:
     natureza: str
     conta_analitica: bool
     conta_pai_id: int | None = None
+
+
+@dataclass
+class ArquivoUploadDTO:
+    nome_original: str
+    conteudo: bytes
+
+
+@dataclass
+class ResultadoUploadDTO:
+    documento: Documento | None
+    nome_original: str
+    erro: str | None

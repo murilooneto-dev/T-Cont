@@ -9,6 +9,7 @@ from app.application.repositories import (
 )
 from app.domain.entities import Conta, Documento, Empresa, LoteProcessamento, OcrResultado, PlanoContas
 from app.domain.enums import StatusDocumento
+from app.infrastructure.storage.file_storage import validar_extensao_e_tamanho
 
 
 class FakeEmpresaRepository(EmpresaRepository):
@@ -150,8 +151,8 @@ class FakeArmazenamentoArquivos(ArmazenamentoArquivos):
         self._contador = 0
 
     def salvar(self, empresa_id: int, nome_original: str, conteudo: bytes) -> tuple[str, str, str]:
+        extensao = validar_extensao_e_tamanho(nome_original, len(conteudo))
         self._contador += 1
-        extensao = "." + nome_original.rsplit(".", 1)[-1].lower()
         nome_fisico = f"fake_{self._contador}{extensao}"
         caminho_relativo = f"empresa_{empresa_id}/documentos/{nome_fisico}"
         self._arquivos[caminho_relativo] = conteudo
