@@ -21,31 +21,48 @@ def upgrade() -> None:
         sa.Column("nome_fantasia", sa.String(255), nullable=True),
         sa.Column("cnpj", sa.String(14), nullable=False, unique=True),
         sa.Column("ativo", sa.Boolean, nullable=False, server_default=sa.true()),
-        sa.Column("created_at", sa.DateTime, nullable=False),
-        sa.Column("updated_at", sa.DateTime, nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
 
     op.create_table(
         "planos_contas",
         sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column("empresa_id", sa.Integer, sa.ForeignKey("empresas.id"), nullable=False),
+        sa.Column(
+            "empresa_id",
+            sa.Integer,
+            sa.ForeignKey("empresas.id"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("nome", sa.String(255), nullable=False),
         sa.Column("versao", sa.Integer, nullable=False, server_default="1"),
         sa.Column("ativo", sa.Boolean, nullable=False, server_default=sa.true()),
-        sa.Column("created_at", sa.DateTime, nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
 
     op.create_table(
         "contas",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column(
-            "plano_conta_id", sa.Integer, sa.ForeignKey("planos_contas.id"), nullable=False
+            "plano_conta_id",
+            sa.Integer,
+            sa.ForeignKey("planos_contas.id"),
+            nullable=False,
+            index=True,
         ),
         sa.Column("codigo", sa.String(50), nullable=False),
         sa.Column("descricao", sa.String(255), nullable=False),
         sa.Column("natureza", sa.String(20), nullable=False),
         sa.Column("conta_analitica", sa.Boolean, nullable=False),
-        sa.Column("conta_pai_id", sa.Integer, sa.ForeignKey("contas.id"), nullable=True),
+        sa.Column(
+            "conta_pai_id",
+            sa.Integer,
+            sa.ForeignKey("contas.id"),
+            nullable=True,
+            index=True,
+        ),
+        sa.UniqueConstraint("plano_conta_id", "codigo", name="uq_contas_plano_codigo"),
     )
 
     for table_name in (
@@ -62,13 +79,13 @@ def upgrade() -> None:
             sa.Column(
                 "empresa_id", sa.Integer, sa.ForeignKey("empresas.id"), nullable=False
             ),
-            sa.Column("created_at", sa.DateTime, nullable=False),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         )
 
     op.create_table(
         "usuarios",
         sa.Column("id", sa.Integer, primary_key=True),
-        sa.Column("created_at", sa.DateTime, nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
 
     for table_name in ("logs", "configuracoes"):
@@ -78,7 +95,7 @@ def upgrade() -> None:
             sa.Column(
                 "empresa_id", sa.Integer, sa.ForeignKey("empresas.id"), nullable=True
             ),
-            sa.Column("created_at", sa.DateTime, nullable=False),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         )
 
 

@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { api } from "../api/client";
-import type { Conta, ImportPreview } from "../types/planoContas";
+import type { ImportPreview } from "../types/planoContas";
 
 export function PlanoContasImport({
   planoId,
   onImported,
 }: {
   planoId: number;
-  onImported: (contas: Conta[]) => void;
+  // Notifica que a importação concluiu; o pai recarrega as contas da API.
+  // Concatenar a resposta ao estado atual duplicaria a árvore na tela.
+  onImported: () => void;
 }) {
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
@@ -28,10 +30,10 @@ export function PlanoContasImport({
     if (!arquivo) return;
     setErro(null);
     try {
-      const contas = await api.contas.importConfirm(planoId, arquivo);
+      await api.contas.importConfirm(planoId, arquivo);
       setPreview(null);
       setArquivo(null);
-      onImported(contas);
+      onImported();
     } catch (err) {
       setErro((err as Error).message);
     }

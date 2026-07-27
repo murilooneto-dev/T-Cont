@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
 import { ContasTree } from "../components/ContasTree";
 import { EmpresaForm } from "../components/EmpresaForm";
@@ -28,13 +28,17 @@ export function EmpresasPage() {
     api.planosContas.list(empresaSelecionadaId).then(setPlanos);
   }, [empresaSelecionadaId]);
 
-  useEffect(() => {
+  const carregarContas = useCallback(() => {
     if (planoSelecionadoId === null) {
       setContas([]);
       return;
     }
     api.contas.listByPlano(planoSelecionadoId).then(setContas);
   }, [planoSelecionadoId]);
+
+  useEffect(() => {
+    carregarContas();
+  }, [carregarContas]);
 
   async function handleCriarPlano() {
     if (empresaSelecionadaId === null || !nomePlano) return;
@@ -101,7 +105,7 @@ export function EmpresasPage() {
         <section className="grid grid-cols-2 gap-4 border-t border-slate-200 pt-4">
           <PlanoContasImport
             planoId={planoSelecionadoId}
-            onImported={(novasContas) => setContas((atual) => [...atual, ...novasContas])}
+            onImported={carregarContas}
           />
           <div>
             <h2 className="mb-2 text-sm font-semibold text-slate-700">Contas</h2>
