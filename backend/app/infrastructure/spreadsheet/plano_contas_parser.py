@@ -26,14 +26,42 @@ class ParsePlanoContasResultado:
     linhas: list[LinhaPlanoContas]
 
 
+def _decodificar(conteudo: bytes) -> str:
+    """Decodifica o CSV tolerando encodings legados de ERPs brasileiros.
+
+    latin-1/cp1252 aceitam qualquer sequência de bytes, então o fallback
+    nunca lança: no pior caso o texto sai truncado/ilegível e a detecção de
+    colunas rejeita o arquivo com ImportacaoPlanoContasInvalida (422), em
+    vez de estourar um UnicodeDecodeError não tratado (500).
+    """
+    for encoding in ("utf-8-sig", "cp1252", "latin-1"):
+        try:
+            return conteudo.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return conteudo.decode("latin-1", errors="replace")
+
+
 def _ler_linhas_csv(conteudo: bytes) -> list[list[str]]:
-    texto = conteudo.decode("utf-8-sig")
+    texto = _decodificar(conteudo)
     leitor = csv.reader(io.StringIO(texto))
-    return [linha for linha in leitor if any(celula.strip() for celula in linha)]
+    try:
+        return [linha for linha in leitor if any(celula.strip() for celula in linha)]
+    except csv.Error as exc:
+        raise ImportacaoPlanoContasInvalida(
+            f"Não foi possível ler o arquivo como CSV: {exc}. "
+            "Envie um arquivo .csv ou .xlsx válido."
+        ) from exc
 
 
 def _ler_linhas_xlsx(conteudo: bytes) -> list[list[str]]:
-    planilha = load_workbook(io.BytesIO(conteudo), read_only=True, data_only=True)
+    try:
+        planilha = load_workbook(io.BytesIO(conteudo), read_only=True, data_only=True)
+    except Exception as exc:  # openpyxl lança tipos variados para arquivos inválidos
+        raise ImportacaoPlanoContasInvalida(
+            f"Não foi possível ler o arquivo como planilha Excel: {exc}. "
+            "Envie um arquivo .xlsx válido."
+        ) from exc
     aba = planilha.active
     linhas = []
     for linha in aba.iter_rows(values_only=True):
@@ -48,8 +76,10 @@ def _parse_bool(valor: str | None) -> bool | None:
     return valor.strip().lower() in {"true", "verdadeiro", "sim", "1"}
 
 
-def parsear_planilha(conteudo: bytes, nome_arquivo: str) -> ParsePlanoContasResultado:
-    if nome_arquivo.lower().endswith(".xlsx"):
+def parsear_planilha(
+    conteudo: bytes, nome_arquivo: str | None
+) -> ParsePlanoContasResultado:
+    if (nome_arquivo or "").lower().endswith(".xlsx"):
         linhas_brutas = _ler_linhas_xlsx(conteudo)
     else:
         linhas_brutas = _ler_linhas_csv(conteudo)

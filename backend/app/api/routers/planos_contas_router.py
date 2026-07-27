@@ -14,9 +14,16 @@ from app.application.use_cases.plano_contas_use_cases import (
     CriarPlanoContasUseCase,
     ListarPlanosContasUseCase,
 )
-from app.core.exceptions import ImportacaoPlanoContasInvalida
+from app.core.exceptions import (
+    EmpresaNaoEncontrada,
+    ImportacaoPlanoContasInvalida,
+    PlanoContasNaoEncontrado,
+)
 from app.infrastructure.repositories.sqlalchemy_conta_repository import (
     SqlAlchemyContaRepository,
+)
+from app.infrastructure.repositories.sqlalchemy_empresa_repository import (
+    SqlAlchemyEmpresaRepository,
 )
 from app.infrastructure.repositories.sqlalchemy_plano_contas_repository import (
     SqlAlchemyPlanoContasRepository,
@@ -32,7 +39,13 @@ router = APIRouter(tags=["planos-contas"])
 )
 def criar_plano_contas(empresa_id: int, payload: PlanoContasCreateIn, db: Session = Depends(get_db)):
     repo = SqlAlchemyPlanoContasRepository(db)
-    return CriarPlanoContasUseCase(repo).executar(empresa_id, CriarPlanoContasDTO(payload.nome))
+    empresa_repo = SqlAlchemyEmpresaRepository(db)
+    try:
+        return CriarPlanoContasUseCase(repo, empresa_repo).executar(
+            empresa_id, CriarPlanoContasDTO(payload.nome)
+        )
+    except EmpresaNaoEncontrada as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/empresas/{empresa_id}/planos-contas", response_model=list[PlanoContasOut])
@@ -64,4 +77,12 @@ async def confirmar_importacao(
     except ImportacaoPlanoContasInvalida as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     repo = SqlAlchemyContaRepository(db)
-    return ConfirmarImportacaoUseCase(repo).executar(plano_id, resultado.linhas)
+    plano_repo = SqlAlchemyPlanoContasRepository(db)
+    try:
+        return ConfirmarImportacaoUseCase(repo, plano_repo).executar(
+            plano_id, resultado.linhas
+        )
+    except PlanoContasNaoEncontrado as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ImportacaoPlanoContasInvalida as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

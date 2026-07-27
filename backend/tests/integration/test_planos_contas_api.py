@@ -79,3 +79,23 @@ def test_criar_plano_contas_e_contas(client, empresa_id):
 
     response = client.get(f"/planos-contas/{plano_id}/contas")
     assert len(response.json()) == 0
+
+
+def test_criar_plano_para_empresa_inexistente_retorna_404(client):
+    response = client.post("/empresas/999/planos-contas", json={"nome": "Plano Órfão"})
+
+    assert response.status_code == 404
+    assert client.get("/empresas/999/planos-contas").json() == []
+
+
+def test_criar_conta_em_plano_inexistente_retorna_404(client, empresa_id):
+    response = client.post(
+        "/planos-contas/999/contas",
+        json={
+            "codigo": "1.1.01", "descricao": "Caixa", "natureza": "ATIVO",
+            "conta_analitica": True, "conta_pai_id": None,
+        },
+    )
+
+    assert response.status_code == 404
+    assert client.get("/planos-contas/999/contas").json() == []

@@ -1,15 +1,18 @@
 from app.application.dto import AtualizarContaDTO, CriarContaDTO
-from app.application.repositories import ContaRepository
-from app.core.exceptions import ContaNaoEncontrada
+from app.application.repositories import ContaRepository, PlanoContasRepository
+from app.core.exceptions import ContaNaoEncontrada, PlanoContasNaoEncontrado
 from app.domain.entities import Conta
 from app.domain.enums import NaturezaConta
 
 
 class CriarContaUseCase:
-    def __init__(self, repo: ContaRepository):
+    def __init__(self, repo: ContaRepository, plano_repo: PlanoContasRepository):
         self._repo = repo
+        self._plano_repo = plano_repo
 
     def executar(self, plano_conta_id: int, dto: CriarContaDTO) -> Conta:
+        if self._plano_repo.obter_por_id(plano_conta_id) is None:
+            raise PlanoContasNaoEncontrado(plano_conta_id)
         conta = Conta(
             id=None,
             plano_conta_id=plano_conta_id,

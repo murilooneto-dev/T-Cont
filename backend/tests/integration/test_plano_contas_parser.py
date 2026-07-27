@@ -37,3 +37,42 @@ def test_planilha_sem_colunas_obrigatorias_falha():
 
     with pytest.raises(ImportacaoPlanoContasInvalida):
         parsear_planilha(conteudo, "invalida.csv")
+
+
+def test_parseia_csv_em_latin1():
+    # Exportações de ERP brasileiro costumam vir em cp1252/latin-1, que
+    # antes estouravam UnicodeDecodeError (HTTP 500).
+    texto = (
+        "Código,Descrição,Natureza\n"
+        "1.1.01,Caixa,ATIVO\n"
+        "3.1.02,Manutenção Predial,DESPESA\n"
+    )
+    conteudo = texto.encode("latin-1")
+
+    resultado = parsear_planilha(conteudo, "plano_latin1.csv")
+
+    assert resultado.mapeamento["codigo"] == 0
+    assert len(resultado.linhas) == 2
+    assert resultado.linhas[1].descricao == "Manutenção Predial"
+
+
+def test_conteudo_binario_nao_estoura_excecao_crua():
+    # Bytes arbitrários (ex.: um PDF renomeado) devem virar erro de
+    # importação, nunca UnicodeDecodeError/csv.Error sem tratamento.
+    conteudo = bytes(range(256)) * 4
+
+    with pytest.raises(ImportacaoPlanoContasInvalida):
+        parsear_planilha(conteudo, "lixo.csv")
+
+
+def test_nome_de_arquivo_ausente_nao_estoura():
+    conteudo = b"Codigo,Descricao,Natureza\n1.1.01,Caixa,ATIVO\n"
+
+    resultado = parsear_planilha(conteudo, None)
+
+    assert len(resultado.linhas) == 1
+
+
+def test_xlsx_invalido_vira_erro_de_importacao():
+    with pytest.raises(ImportacaoPlanoContasInvalida):
+        parsear_planilha(b"isto nao e um xlsx", "plano.xlsx")

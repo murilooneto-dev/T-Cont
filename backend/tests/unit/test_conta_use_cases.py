@@ -7,35 +7,44 @@ from app.application.use_cases.conta_use_cases import (
     DeletarContaUseCase,
     ListarContasUseCase,
 )
-from app.core.exceptions import ContaNaoEncontrada
-from tests.fakes import FakeContaRepository
+from app.core.exceptions import ContaNaoEncontrada, PlanoContasNaoEncontrado
+from app.domain.entities import PlanoContas
+from tests.fakes import FakeContaRepository, FakePlanoContasRepository
 
 
-def test_criar_conta():
+@pytest.fixture
+def plano_repo():
+    repo = FakePlanoContasRepository()
+    repo.criar(PlanoContas(id=None, empresa_id=1, nome="Plano 1"))
+    repo.criar(PlanoContas(id=None, empresa_id=1, nome="Plano 2"))
+    return repo
+
+
+def test_criar_conta(plano_repo):
     repo = FakeContaRepository()
     dto = CriarContaDTO(codigo="1.1.01", descricao="Caixa", natureza="ATIVO", conta_analitica=True)
 
-    conta = CriarContaUseCase(repo).executar(1, dto)
+    conta = CriarContaUseCase(repo, plano_repo).executar(1, dto)
 
     assert conta.id == 1
     assert conta.codigo == "1.1.01"
     assert conta.natureza.value == "ATIVO"
 
 
-def test_listar_contas_por_plano():
+def test_listar_contas_por_plano(plano_repo):
     repo = FakeContaRepository()
-    CriarContaUseCase(repo).executar(1, CriarContaDTO("1.1", "Disponibilidades", "ATIVO", False))
-    CriarContaUseCase(repo).executar(1, CriarContaDTO("1.1.01", "Caixa", "ATIVO", True))
-    CriarContaUseCase(repo).executar(2, CriarContaDTO("2.1", "Fornecedores", "PASSIVO", True))
+    CriarContaUseCase(repo, plano_repo).executar(1, CriarContaDTO("1.1", "Disponibilidades", "ATIVO", False))
+    CriarContaUseCase(repo, plano_repo).executar(1, CriarContaDTO("1.1.01", "Caixa", "ATIVO", True))
+    CriarContaUseCase(repo, plano_repo).executar(2, CriarContaDTO("2.1", "Fornecedores", "PASSIVO", True))
 
     contas = ListarContasUseCase(repo).executar(1)
 
     assert len(contas) == 2
 
 
-def test_atualizar_conta():
+def test_atualizar_conta(plano_repo):
     repo = FakeContaRepository()
-    conta = CriarContaUseCase(repo).executar(1, CriarContaDTO("1.1.01", "Caixa", "ATIVO", True))
+    conta = CriarContaUseCase(repo, plano_repo).executar(1, CriarContaDTO("1.1.01", "Caixa", "ATIVO", True))
 
     atualizada = AtualizarContaUseCase(repo).executar(
         conta.id, AtualizarContaDTO("1.1.01", "Caixa e Equivalentes", "ATIVO", True)
@@ -44,9 +53,9 @@ def test_atualizar_conta():
     assert atualizada.descricao == "Caixa e Equivalentes"
 
 
-def test_deletar_conta():
+def test_deletar_conta(plano_repo):
     repo = FakeContaRepository()
-    conta = CriarContaUseCase(repo).executar(1, CriarContaDTO("1.1.01", "Caixa", "ATIVO", True))
+    conta = CriarContaUseCase(repo, plano_repo).executar(1, CriarContaDTO("1.1.01", "Caixa", "ATIVO", True))
 
     DeletarContaUseCase(repo).executar(conta.id)
 
@@ -57,3 +66,13 @@ def test_atualizar_conta_inexistente_falha():
     repo = FakeContaRepository()
     with pytest.raises(ContaNaoEncontrada):
         AtualizarContaUseCase(repo).executar(999, AtualizarContaDTO("1", "x", "ATIVO", True))
+
+
+def test_criar_conta_em_plano_inexistente_falha(plano_repo):
+    repo = FakeContaRepository()
+    dto = CriarContaDTO(codigo="1.1.01", descricao="Caixa", natureza="ATIVO", conta_analitica=True)
+
+    with pytest.raises(PlanoContasNaoEncontrado):
+        CriarContaUseCase(repo, plano_repo).executar(999, dto)
+
+    assert repo.listar_por_plano(999) == []
