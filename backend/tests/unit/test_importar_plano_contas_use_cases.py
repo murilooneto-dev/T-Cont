@@ -40,6 +40,31 @@ def test_confirmar_importacao_cria_contas_com_hierarquia():
     assert filha.conta_pai_id == pai.id
 
 
+def test_confirmar_importacao_resolve_hierarquia_com_ordem_embaralhada_e_codigos_mesmo_tamanho():
+    # Regressão: código do pai ("100") e do filho ("101") têm o mesmo
+    # comprimento, e as linhas chegam fora de ordem (neta antes da filha
+    # antes da mãe). Um sort por len(codigo) não reordenaria essas linhas
+    # (chaves iguais, sort estável), então o filho seria criado como conta
+    # raiz. A resolução correta deve montar a cadeia completa.
+    repo = FakeContaRepository()
+    linhas = [
+        LinhaPlanoContas(codigo="102", descricao="Neta", natureza="ATIVO", conta_analitica=True, conta_pai="101"),
+        LinhaPlanoContas(codigo="101", descricao="Filha", natureza="ATIVO", conta_analitica=False, conta_pai="100"),
+        LinhaPlanoContas(codigo="100", descricao="Mae", natureza="ATIVO", conta_analitica=False, conta_pai=None),
+    ]
+
+    contas = ConfirmarImportacaoUseCase(repo).executar(plano_conta_id=1, linhas=linhas)
+
+    assert len(contas) == 3
+    mae = next(c for c in contas if c.codigo == "100")
+    filha = next(c for c in contas if c.codigo == "101")
+    neta = next(c for c in contas if c.codigo == "102")
+
+    assert mae.conta_pai_id is None
+    assert filha.conta_pai_id == mae.id
+    assert neta.conta_pai_id == filha.id
+
+
 def test_confirmar_importacao_aplica_defaults_quando_natureza_ausente():
     repo = FakeContaRepository()
     linhas = [

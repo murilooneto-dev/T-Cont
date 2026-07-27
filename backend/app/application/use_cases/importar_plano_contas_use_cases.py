@@ -21,10 +21,9 @@ class ConfirmarImportacaoUseCase:
         codigo_para_id: dict[str, int] = {}
         contas_criadas: list[Conta] = []
 
-        linhas_ordenadas = sorted(linhas, key=lambda l: len(l.codigo))
+        pendentes = list(linhas)
 
-        for linha in linhas_ordenadas:
-            conta_pai_id = codigo_para_id.get(linha.conta_pai) if linha.conta_pai else None
+        def _criar(linha: LinhaPlanoContas, conta_pai_id: int | None) -> None:
             conta = Conta(
                 id=None,
                 plano_conta_id=plano_conta_id,
@@ -37,5 +36,33 @@ class ConfirmarImportacaoUseCase:
             criada = self._repo.criar(conta)
             codigo_para_id[linha.codigo] = criada.id
             contas_criadas.append(criada)
+
+        # Resolve rows in multiple passes: a row can be created once its
+        # conta_pai (if any) has already been created (or is empty/None).
+        # This correctly handles arbitrary hierarchy depth and out-of-order
+        # input, unlike a length-based sort which only works when code
+        # length strictly correlates with hierarchy depth.
+        while pendentes:
+            proxima_rodada = []
+            progresso = False
+
+            for linha in pendentes:
+                if not linha.conta_pai or linha.conta_pai in codigo_para_id:
+                    conta_pai_id = codigo_para_id.get(linha.conta_pai) if linha.conta_pai else None
+                    _criar(linha, conta_pai_id)
+                    progresso = True
+                else:
+                    proxima_rodada.append(linha)
+
+            if not progresso:
+                # Remaining rows reference a conta_pai code that never
+                # appears in this batch. Parent-matching is scoped to
+                # within the same batch, so treat these as root accounts
+                # as a last resort rather than raising.
+                for linha in proxima_rodada:
+                    _criar(linha, None)
+                break
+
+            pendentes = proxima_rodada
 
         return contas_criadas
