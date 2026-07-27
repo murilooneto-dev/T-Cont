@@ -7,7 +7,7 @@ _SINONIMOS: dict[str, list[str]] = {
     "codigo": ["codigo", "cod", "cod conta", "codigo conta", "account code", "code"],
     "descricao": [
         "descricao", "descricao da conta", "nome", "nome da conta", "historico",
-        "account name", "name", "conta",
+        "account name", "name",
     ],
     "natureza": ["natureza", "tipo", "tipo de conta", "account type", "type"],
     "conta_analitica": [
@@ -45,6 +45,6 @@ def detectar_colunas(cabecalhos: list[str]) -> dict[str, int | None]:
                     melhor_score = score
                     melhor_indice = indice
 
-        resultado[campo] = melhor_indice if melhor_score >= 0.8 else None
+        resultado[campo] = melhor_indice if melhor_score >= 0.87 else None
 
     return resultado
