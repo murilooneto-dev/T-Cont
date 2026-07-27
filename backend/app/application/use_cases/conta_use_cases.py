@@ -1,6 +1,10 @@
 from app.application.dto import AtualizarContaDTO, CriarContaDTO
 from app.application.repositories import ContaRepository, PlanoContasRepository
-from app.core.exceptions import ContaNaoEncontrada, PlanoContasNaoEncontrado
+from app.core.exceptions import (
+    ContaJaCadastrada,
+    ContaNaoEncontrada,
+    PlanoContasNaoEncontrado,
+)
 from app.domain.entities import Conta
 from app.domain.enums import NaturezaConta
 
@@ -13,6 +17,11 @@ class CriarContaUseCase:
     def executar(self, plano_conta_id: int, dto: CriarContaDTO) -> Conta:
         if self._plano_repo.obter_por_id(plano_conta_id) is None:
             raise PlanoContasNaoEncontrado(plano_conta_id)
+        # O banco garante a unicidade de (plano_conta_id, codigo); checar antes
+        # transforma o IntegrityError (que viraria um 500) em um erro de domínio.
+        existentes = {c.codigo for c in self._repo.listar_por_plano(plano_conta_id)}
+        if dto.codigo in existentes:
+            raise ContaJaCadastrada(dto.codigo, plano_conta_id)
         conta = Conta(
             id=None,
             plano_conta_id=plano_conta_id,

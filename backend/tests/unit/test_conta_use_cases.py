@@ -7,7 +7,11 @@ from app.application.use_cases.conta_use_cases import (
     DeletarContaUseCase,
     ListarContasUseCase,
 )
-from app.core.exceptions import ContaNaoEncontrada, PlanoContasNaoEncontrado
+from app.core.exceptions import (
+    ContaJaCadastrada,
+    ContaNaoEncontrada,
+    PlanoContasNaoEncontrado,
+)
 from app.domain.entities import PlanoContas
 from tests.fakes import FakeContaRepository, FakePlanoContasRepository
 
@@ -76,3 +80,18 @@ def test_criar_conta_em_plano_inexistente_falha(plano_repo):
         CriarContaUseCase(repo, plano_repo).executar(999, dto)
 
     assert repo.listar_por_plano(999) == []
+
+
+def test_criar_conta_com_codigo_duplicado_no_mesmo_plano_falha(plano_repo):
+    repo = FakeContaRepository()
+    dto = CriarContaDTO(codigo="1.1.01", descricao="Caixa", natureza="ATIVO", conta_analitica=True)
+
+    CriarContaUseCase(repo, plano_repo).executar(1, dto)
+
+    with pytest.raises(ContaJaCadastrada):
+        CriarContaUseCase(repo, plano_repo).executar(1, dto)
+
+    assert len(repo.listar_por_plano(1)) == 1
+    # O mesmo código em outro plano continua permitido.
+    CriarContaUseCase(repo, plano_repo).executar(2, dto)
+    assert len(repo.listar_por_plano(2)) == 1

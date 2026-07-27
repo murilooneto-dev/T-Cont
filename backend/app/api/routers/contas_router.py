@@ -10,7 +10,11 @@ from app.application.use_cases.conta_use_cases import (
     DeletarContaUseCase,
     ListarContasUseCase,
 )
-from app.core.exceptions import ContaNaoEncontrada, PlanoContasNaoEncontrado
+from app.core.exceptions import (
+    ContaJaCadastrada,
+    ContaNaoEncontrada,
+    PlanoContasNaoEncontrado,
+)
 from app.infrastructure.repositories.sqlalchemy_conta_repository import (
     SqlAlchemyContaRepository,
 )
@@ -35,6 +39,8 @@ def criar_conta(plano_id: int, payload: ContaCreateIn, db: Session = Depends(get
         return CriarContaUseCase(repo, plano_repo).executar(plano_id, dto)
     except PlanoContasNaoEncontrado as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ContaJaCadastrada as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/planos-contas/{plano_id}/contas", response_model=list[ContaOut])

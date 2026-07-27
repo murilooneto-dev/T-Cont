@@ -17,6 +17,13 @@ class PlanoContasNaoEncontrado(DomainError):
         super().__init__(f"Plano de Contas {plano_id} não encontrado.")
 
 
+class ContaJaCadastrada(DomainError):
+    def __init__(self, codigo: str, plano_id: int):
+        super().__init__(
+            f"A conta {codigo} já existe no plano de contas {plano_id}."
+        )
+
+
 class ContaNaoEncontrada(DomainError):
     def __init__(self, conta_id: int):
         super().__init__(f"Conta {conta_id} não encontrada.")

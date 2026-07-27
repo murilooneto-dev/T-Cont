@@ -88,6 +88,23 @@ def test_criar_plano_para_empresa_inexistente_retorna_404(client):
     assert client.get("/empresas/999/planos-contas").json() == []
 
 
+def test_criar_conta_com_codigo_duplicado_retorna_409(client, empresa_id):
+    plano_id = client.post(
+        f"/empresas/{empresa_id}/planos-contas", json={"nome": "Plano Padrão"}
+    ).json()["id"]
+    payload = {
+        "codigo": "1.1.01", "descricao": "Caixa", "natureza": "ATIVO",
+        "conta_analitica": True, "conta_pai_id": None,
+    }
+
+    assert client.post(f"/planos-contas/{plano_id}/contas", json=payload).status_code == 201
+
+    # A UniqueConstraint do banco viraria um IntegrityError (500) sem a
+    # checagem no use case; aqui precisa ser um 409 limpo.
+    assert client.post(f"/planos-contas/{plano_id}/contas", json=payload).status_code == 409
+    assert len(client.get(f"/planos-contas/{plano_id}/contas").json()) == 1
+
+
 def test_criar_conta_em_plano_inexistente_retorna_404(client, empresa_id):
     response = client.post(
         "/planos-contas/999/contas",
