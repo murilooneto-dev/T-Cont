@@ -20,9 +20,9 @@ export function EmpresasPage() {
   }, []);
 
   useEffect(() => {
+    setPlanoSelecionadoId(null);
     if (empresaSelecionadaId === null) {
       setPlanos([]);
-      setPlanoSelecionadoId(null);
       return;
     }
     api.planosContas.list(empresaSelecionadaId).then(setPlanos);
