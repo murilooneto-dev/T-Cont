@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.enums import NaturezaConta
@@ -74,20 +74,53 @@ class ContaModel(Base):
 
 class DocumentoModel(Base):
     __tablename__ = "documentos"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    empresa_id: Mapped[int] = mapped_column(ForeignKey("empresas.id"), nullable=False)
+    empresa_id: Mapped[int] = mapped_column(
+        ForeignKey("empresas.id"), nullable=False, index=True
+    )
+    nome_arquivo: Mapped[str] = mapped_column(String(255), nullable=False)
+    nome_exibicao: Mapped[str] = mapped_column(String(255), nullable=False)
+    caminho_arquivo: Mapped[str] = mapped_column(String(500), nullable=False)
+    extensao: Mapped[str] = mapped_column(String(10), nullable=False)
+    tamanho_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDENTE")
+    mensagem_erro: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
     )
 
 
 class OcrResultadoModel(Base):
     __tablename__ = "ocr_resultados"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    empresa_id: Mapped[int] = mapped_column(ForeignKey("empresas.id"), nullable=False)
+    documento_id: Mapped[int] = mapped_column(
+        ForeignKey("documentos.id"), nullable=False, unique=True
+    )
+    texto_extraido: Mapped[str] = mapped_column(Text, nullable=False)
+    metodo: Mapped[str] = mapped_column(String(20), nullable=False)
+    tempo_processamento_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, nullable=False
     )
+
+
+class LoteProcessamentoModel(Base):
+    __tablename__ = "lotes_processamento"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    empresa_id: Mapped[int] = mapped_column(ForeignKey("empresas.id"), nullable=False)
+    total_documentos: Mapped[int] = mapped_column(Integer, nullable=False)
+    documentos_processados: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="EM_ANDAMENTO")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+    concluido_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class ExtracaoModel(Base):
