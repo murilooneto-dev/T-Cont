@@ -9,6 +9,16 @@ from app.domain.entities import Conta
 from app.domain.enums import NaturezaConta
 
 
+def _validar_conta_pai(
+    repo: ContaRepository, conta_pai_id: int, plano_conta_id: int
+) -> None:
+    # Com PRAGMA foreign_keys=ON, um conta_pai_id inexistente (ou de outro
+    # plano) viraria um IntegrityError (500) sem esta checagem.
+    pai = repo.obter_por_id(conta_pai_id)
+    if pai is None or pai.plano_conta_id != plano_conta_id:
+        raise ContaNaoEncontrada(conta_pai_id, contexto="Conta pai")
+
+
 class CriarContaUseCase:
     def __init__(self, repo: ContaRepository, plano_repo: PlanoContasRepository):
         self._repo = repo
@@ -23,11 +33,7 @@ class CriarContaUseCase:
         if dto.codigo in existentes:
             raise ContaJaCadastrada(dto.codigo, plano_conta_id)
         if dto.conta_pai_id is not None:
-            # Com PRAGMA foreign_keys=ON, um conta_pai_id inexistente (ou de
-            # outro plano) viraria um IntegrityError (500) sem esta checagem.
-            pai = self._repo.obter_por_id(dto.conta_pai_id)
-            if pai is None or pai.plano_conta_id != plano_conta_id:
-                raise ContaNaoEncontrada(dto.conta_pai_id)
+            _validar_conta_pai(self._repo, dto.conta_pai_id, plano_conta_id)
         conta = Conta(
             id=None,
             plano_conta_id=plano_conta_id,
@@ -67,6 +73,13 @@ class AtualizarContaUseCase:
         }
         if dto.codigo in outras:
             raise ContaJaCadastrada(dto.codigo, conta.plano_conta_id)
+        if dto.conta_pai_id is not None:
+            # Uma conta não pode ser pai de si mesma (ciclo autoreferente);
+            # tratado como "pai não encontrado" para manter uma única
+            # classe de erro, igual ao caso de pai inexistente/outro plano.
+            if dto.conta_pai_id == conta.id:
+                raise ContaNaoEncontrada(dto.conta_pai_id, contexto="Conta pai")
+            _validar_conta_pai(self._repo, dto.conta_pai_id, conta.plano_conta_id)
         conta.codigo = dto.codigo
         conta.descricao = dto.descricao
         conta.natureza = NaturezaConta(dto.natureza)

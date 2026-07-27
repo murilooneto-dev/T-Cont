@@ -25,8 +25,8 @@ class ContaJaCadastrada(DomainError):
 
 
 class ContaNaoEncontrada(DomainError):
-    def __init__(self, conta_id: int):
-        super().__init__(f"Conta {conta_id} não encontrada.")
+    def __init__(self, conta_id: int, contexto: str = "Conta"):
+        super().__init__(f"{contexto} {conta_id} não encontrada.")
 
 
 class ImportacaoPlanoContasInvalida(DomainError):

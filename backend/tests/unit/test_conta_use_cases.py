@@ -149,3 +149,56 @@ def test_atualizar_conta_mantendo_o_proprio_codigo_nao_autocolide(plano_repo):
 
     assert atualizada.codigo == "1.1.01"
     assert atualizada.descricao == "Caixa Atualizado"
+
+
+def test_atualizar_conta_com_conta_pai_inexistente_falha(plano_repo):
+    repo = FakeContaRepository()
+    conta = CriarContaUseCase(repo, plano_repo).executar(1, CriarContaDTO("1.1.01", "Caixa", "ATIVO", True))
+
+    with pytest.raises(ContaNaoEncontrada):
+        AtualizarContaUseCase(repo).executar(
+            conta.id, AtualizarContaDTO("1.1.01", "Caixa", "ATIVO", True, conta_pai_id=999)
+        )
+
+    assert repo.obter_por_id(conta.id).conta_pai_id is None
+
+
+def test_atualizar_conta_com_conta_pai_de_outro_plano_falha(plano_repo):
+    repo = FakeContaRepository()
+    pai = CriarContaUseCase(repo, plano_repo).executar(
+        2, CriarContaDTO(codigo="1", descricao="Ativo", natureza="ATIVO", conta_analitica=False)
+    )
+    conta = CriarContaUseCase(repo, plano_repo).executar(1, CriarContaDTO("1.1.01", "Caixa", "ATIVO", True))
+
+    with pytest.raises(ContaNaoEncontrada):
+        AtualizarContaUseCase(repo).executar(
+            conta.id, AtualizarContaDTO("1.1.01", "Caixa", "ATIVO", True, conta_pai_id=pai.id)
+        )
+
+    assert repo.obter_por_id(conta.id).conta_pai_id is None
+
+
+def test_atualizar_conta_com_conta_pai_igual_a_propria_conta_falha(plano_repo):
+    repo = FakeContaRepository()
+    conta = CriarContaUseCase(repo, plano_repo).executar(1, CriarContaDTO("1.1.01", "Caixa", "ATIVO", True))
+
+    with pytest.raises(ContaNaoEncontrada):
+        AtualizarContaUseCase(repo).executar(
+            conta.id, AtualizarContaDTO("1.1.01", "Caixa", "ATIVO", True, conta_pai_id=conta.id)
+        )
+
+    assert repo.obter_por_id(conta.id).conta_pai_id is None
+
+
+def test_atualizar_conta_com_conta_pai_valida_no_mesmo_plano_funciona(plano_repo):
+    repo = FakeContaRepository()
+    pai = CriarContaUseCase(repo, plano_repo).executar(
+        1, CriarContaDTO(codigo="1", descricao="Ativo", natureza="ATIVO", conta_analitica=False)
+    )
+    conta = CriarContaUseCase(repo, plano_repo).executar(1, CriarContaDTO("1.1.01", "Caixa", "ATIVO", True))
+
+    atualizada = AtualizarContaUseCase(repo).executar(
+        conta.id, AtualizarContaDTO("1.1.01", "Caixa", "ATIVO", True, conta_pai_id=pai.id)
+    )
+
+    assert atualizada.conta_pai_id == pai.id

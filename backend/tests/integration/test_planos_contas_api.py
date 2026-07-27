@@ -193,3 +193,95 @@ def test_atualizar_conta_mantendo_o_proprio_codigo_retorna_200(client, empresa_i
     assert response.status_code == 200
     assert response.json()["codigo"] == "1.1.01"
     assert response.json()["descricao"] == "Caixa Renomeado"
+
+
+def test_atualizar_conta_com_conta_pai_inexistente_retorna_404(client, empresa_id):
+    plano_id = client.post(
+        f"/empresas/{empresa_id}/planos-contas", json={"nome": "Plano Padrão"}
+    ).json()["id"]
+    conta_id = client.post(
+        f"/planos-contas/{plano_id}/contas",
+        json={
+            "codigo": "1.1.01", "descricao": "Caixa", "natureza": "ATIVO",
+            "conta_analitica": True, "conta_pai_id": None,
+        },
+    ).json()["id"]
+
+    # Com PRAGMA foreign_keys=ON, um conta_pai_id inexistente viraria um
+    # IntegrityError (500) sem a checagem no use case; aqui precisa ser um
+    # 404 limpo.
+    response = client.put(
+        f"/contas/{conta_id}",
+        json={
+            "codigo": "1.1.01", "descricao": "Caixa", "natureza": "ATIVO",
+            "conta_analitica": True, "conta_pai_id": 999,
+        },
+    )
+
+    assert response.status_code == 404
+
+
+def test_atualizar_conta_com_conta_pai_de_outro_plano_retorna_404(client, empresa_id):
+    plano1_id = client.post(
+        f"/empresas/{empresa_id}/planos-contas", json={"nome": "Plano 1"}
+    ).json()["id"]
+    plano2_id = client.post(
+        f"/empresas/{empresa_id}/planos-contas", json={"nome": "Plano 2"}
+    ).json()["id"]
+    pai_outro_plano_id = client.post(
+        f"/planos-contas/{plano2_id}/contas",
+        json={
+            "codigo": "1", "descricao": "Ativo", "natureza": "ATIVO",
+            "conta_analitica": False, "conta_pai_id": None,
+        },
+    ).json()["id"]
+    conta_id = client.post(
+        f"/planos-contas/{plano1_id}/contas",
+        json={
+            "codigo": "1.1.01", "descricao": "Caixa", "natureza": "ATIVO",
+            "conta_analitica": True, "conta_pai_id": None,
+        },
+    ).json()["id"]
+
+    # Sem a checagem, isto persistiria silenciosamente um vínculo de pai
+    # cruzando planos de contas diferentes.
+    response = client.put(
+        f"/contas/{conta_id}",
+        json={
+            "codigo": "1.1.01", "descricao": "Caixa", "natureza": "ATIVO",
+            "conta_analitica": True, "conta_pai_id": pai_outro_plano_id,
+        },
+    )
+
+    assert response.status_code == 404
+
+    contas = client.get(f"/planos-contas/{plano1_id}/contas").json()
+    assert contas[0]["conta_pai_id"] is None
+
+
+def test_atualizar_conta_com_conta_pai_igual_a_propria_conta_retorna_404(client, empresa_id):
+    plano_id = client.post(
+        f"/empresas/{empresa_id}/planos-contas", json={"nome": "Plano Padrão"}
+    ).json()["id"]
+    conta_id = client.post(
+        f"/planos-contas/{plano_id}/contas",
+        json={
+            "codigo": "1.1.01", "descricao": "Caixa", "natureza": "ATIVO",
+            "conta_analitica": True, "conta_pai_id": None,
+        },
+    ).json()["id"]
+
+    # Sem a checagem, isto persistiria silenciosamente uma conta como pai
+    # de si mesma (ciclo autoreferente).
+    response = client.put(
+        f"/contas/{conta_id}",
+        json={
+            "codigo": "1.1.01", "descricao": "Caixa", "natureza": "ATIVO",
+            "conta_analitica": True, "conta_pai_id": conta_id,
+        },
+    )
+
+    assert response.status_code == 404
+
+    contas = client.get(f"/planos-contas/{plano_id}/contas").json()
+    assert contas[0]["conta_pai_id"] is None
