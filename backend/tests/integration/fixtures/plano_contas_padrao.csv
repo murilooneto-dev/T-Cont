@@ -1,0 +1,5 @@
+Código,Descrição,Natureza,Conta Analítica,Conta Pai
+1,ATIVO,ATIVO,False,
+1.1,Disponibilidades,ATIVO,False,1
+1.1.01,Caixa,ATIVO,True,1.1
+3.1.02.001,Despesas com Energia,DESPESA,True,
