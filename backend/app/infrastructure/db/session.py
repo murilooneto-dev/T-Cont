@@ -22,11 +22,19 @@ def _habilitar_foreign_keys_sqlite(engine) -> None:
             cursor.close()
 
 
-def get_engine(database_url: str | None = None):
+def get_engine(database_url: str | None = None, **engine_kwargs):
+    """Cria a engine da aplicação (ou de um teste que queira o mesmo comportamento).
+
+    `**engine_kwargs` repassa opções extras para `create_engine` (ex.:
+    `poolclass=StaticPool`, necessário para SQLite `:memory:` compartilhar a
+    mesma conexão entre chamadas em testes). Isso permite que fixtures de
+    teste reusem esta função — e portanto o PRAGMA foreign_keys=ON — em vez
+    de duplicar a lógica de criação de engine sem a checagem de FK.
+    """
     url = database_url or settings.database_url
     is_sqlite = url.startswith("sqlite")
     connect_args = {"check_same_thread": False} if is_sqlite else {}
-    engine = create_engine(url, connect_args=connect_args)
+    engine = create_engine(url, connect_args=connect_args, **engine_kwargs)
     if is_sqlite:
         _habilitar_foreign_keys_sqlite(engine)
     return engine

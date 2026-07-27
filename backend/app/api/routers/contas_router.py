@@ -41,6 +41,8 @@ def criar_conta(plano_id: int, payload: ContaCreateIn, db: Session = Depends(get
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ContaJaCadastrada as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ContaNaoEncontrada as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/planos-contas/{plano_id}/contas", response_model=list[ContaOut])
@@ -60,6 +62,8 @@ def atualizar_conta(conta_id: int, payload: ContaUpdateIn, db: Session = Depends
         return AtualizarContaUseCase(repo).executar(conta_id, dto)
     except ContaNaoEncontrada as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ContaJaCadastrada as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.delete("/contas/{conta_id}", status_code=status.HTTP_204_NO_CONTENT)

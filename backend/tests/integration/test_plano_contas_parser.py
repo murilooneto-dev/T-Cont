@@ -76,3 +76,20 @@ def test_nome_de_arquivo_ausente_nao_estoura():
 def test_xlsx_invalido_vira_erro_de_importacao():
     with pytest.raises(ImportacaoPlanoContasInvalida):
         parsear_planilha(b"isto nao e um xlsx", "plano.xlsx")
+
+
+def test_codigo_e_conta_pai_com_espacos_sao_normalizados():
+    # codigo/conta_pai viram chave de comparação/link em todo o fluxo de
+    # importação (duplicidade, hierarquia); precisam ser normalizados uma
+    # única vez aqui na origem, não em cada consumidor.
+    conteudo = (
+        "Codigo,Descricao,Natureza,Conta Pai\n"
+        " 1.1 ,Disponibilidades,ATIVO,\n"
+        " 1.1.01 ,Caixa,ATIVO, 1.1 \n"
+    ).encode("utf-8")
+
+    resultado = parsear_planilha(conteudo, "plano.csv")
+
+    assert resultado.linhas[0].codigo == "1.1"
+    assert resultado.linhas[1].codigo == "1.1.01"
+    assert resultado.linhas[1].conta_pai == "1.1"

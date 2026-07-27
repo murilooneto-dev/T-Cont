@@ -1,22 +1,20 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_db
 from app.infrastructure.db.base import Base
 from app.infrastructure.db import models  # noqa: F401
+from app.infrastructure.db.session import get_engine
 from app.main import app
 
 
 @pytest.fixture
 def client():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    # Reusa get_engine() (em vez de duplicar create_engine aqui) para que
+    # este fixture rode com o mesmo PRAGMA foreign_keys=ON da aplicação.
+    engine = get_engine("sqlite:///:memory:", poolclass=StaticPool)
     Base.metadata.create_all(engine)
     TestSessionLocal = sessionmaker(bind=engine)
 
@@ -170,6 +168,49 @@ def test_importar_csv_latin1_nao_retorna_500(client, plano_id):
     )
 
     assert response.status_code in (201, 422)
+
+
+def test_reimportar_arquivo_com_codigo_com_espacos_retorna_422_e_nao_duplica(client, plano_id):
+    # codigo/conta_pai com espaços nas pontas precisam ser normalizados na
+    # origem (parser); antes disso, o valor persistido ficava padded
+    # enquanto a checagem de duplicidade comparava a versão stripped, e a
+    # reimportação do mesmo arquivo estourava IntegrityError (500) em vez
+    # do 422 esperado.
+    conteudo_padded = b"Codigo,Descricao,Natureza,Conta Pai\n 1.1 ,Disponibilidades,ATIVO,\n"
+
+    primeira = client.post(
+        f"/planos-contas/{plano_id}/import/confirm",
+        files={"arquivo": ("plano.csv", conteudo_padded, "text/csv")},
+    )
+    assert primeira.status_code == 201
+    assert primeira.json()[0]["codigo"] == "1.1"
+
+    segunda = client.post(
+        f"/planos-contas/{plano_id}/import/confirm",
+        files={"arquivo": ("plano.csv", conteudo_padded, "text/csv")},
+    )
+    assert segunda.status_code == 422
+
+    assert len(client.get(f"/planos-contas/{plano_id}/contas").json()) == 1
+
+
+def test_importar_hierarquia_com_codigo_pai_com_espacos_resolve_link(client, plano_id):
+    conteudo = (
+        "Codigo,Descricao,Natureza,Conta Pai\n"
+        " 1.1 ,Disponibilidades,ATIVO,\n"
+        " 1.1.01 ,Caixa,ATIVO, 1.1 \n"
+    ).encode("utf-8")
+
+    response = client.post(
+        f"/planos-contas/{plano_id}/import/confirm",
+        files={"arquivo": ("plano.csv", conteudo, "text/csv")},
+    )
+
+    assert response.status_code == 201
+    contas = response.json()
+    por_codigo = {c["codigo"]: c for c in contas}
+    assert por_codigo["1.1"]["conta_pai_id"] is None
+    assert por_codigo["1.1.01"]["conta_pai_id"] == por_codigo["1.1"]["id"]
 
 
 def test_importar_conteudo_binario_retorna_422(client, plano_id):

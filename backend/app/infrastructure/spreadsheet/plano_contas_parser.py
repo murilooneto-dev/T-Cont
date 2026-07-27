@@ -103,13 +103,26 @@ def parsear_planilha(
             return None
         return linha[indice] or None
 
+    def valor_normalizado(linha: list[str], campo: str) -> str | None:
+        """Como `valor`, mas com espaços nas pontas removidos.
+
+        Usado para codigo/conta_pai: essas strings viram chave de
+        comparação/link (duplicidade, hierarquia pai/filho) em todo o
+        fluxo de importação, então precisam ser normalizadas uma única vez
+        aqui na origem — não em cada consumidor — para que todos os pontos
+        do fluxo (checagem de duplicidade, resolução de hierarquia,
+        persistência) enxerguem exatamente o mesmo valor.
+        """
+        bruto = valor(linha, campo)
+        return bruto.strip() if bruto is not None else None
+
     linhas = [
         LinhaPlanoContas(
-            codigo=valor(linha, "codigo") or "",
+            codigo=valor_normalizado(linha, "codigo") or "",
             descricao=valor(linha, "descricao") or "",
             natureza=valor(linha, "natureza"),
             conta_analitica=_parse_bool(valor(linha, "conta_analitica")),
-            conta_pai=valor(linha, "conta_pai"),
+            conta_pai=valor_normalizado(linha, "conta_pai"),
         )
         for linha in linhas_dados
     ]
