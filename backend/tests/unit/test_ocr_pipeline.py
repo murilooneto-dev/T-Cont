@@ -84,3 +84,27 @@ def test_ambos_engines_falham_retorna_resultado_com_erro():
 
     assert resultado.erro is not None
     assert resultado.texto == ""
+
+
+def test_pdf_malformado_na_extracao_nativa_nao_propaga_excecao():
+    conteudo = b"not a real pdf"
+
+    resultado = processar_documento(conteudo, ".pdf")
+
+    assert resultado.erro is not None
+    assert resultado.texto == ""
+    assert resultado.metodo == MetodoOcr.TESSERACT
+
+
+def test_falha_ao_renderizar_paginas_pdf_nao_propaga_excecao():
+    conteudo = _pdf_vazio()
+
+    with patch(
+        "app.infrastructure.ocr.pipeline.renderizar_paginas_pdf",
+        side_effect=RuntimeError("falha ao renderizar pagina"),
+    ):
+        resultado = processar_documento(conteudo, ".pdf")
+
+    assert resultado.erro is not None
+    assert resultado.texto == ""
+    assert resultado.metodo == MetodoOcr.TESSERACT

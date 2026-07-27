@@ -22,13 +22,24 @@ def processar_documento(conteudo: bytes, extensao: str) -> ResultadoPipelineOcr:
     inicio = time.monotonic()
 
     if extensao == ".pdf":
-        texto_nativo = extrair_texto_nativo(conteudo)
-        if texto_nativo is not None:
+        try:
+            texto_nativo = extrair_texto_nativo(conteudo)
+            if texto_nativo is not None:
+                tempo_ms = int((time.monotonic() - inicio) * 1000)
+                return ResultadoPipelineOcr(
+                    texto=texto_nativo,
+                    metodo=MetodoOcr.PDF_NATIVO,
+                    tempo_processamento_ms=tempo_ms,
+                )
+            imagens = renderizar_paginas_pdf(conteudo)
+        except Exception as exc:
             tempo_ms = int((time.monotonic() - inicio) * 1000)
             return ResultadoPipelineOcr(
-                texto=texto_nativo, metodo=MetodoOcr.PDF_NATIVO, tempo_processamento_ms=tempo_ms
+                texto="",
+                metodo=MetodoOcr.TESSERACT,
+                tempo_processamento_ms=tempo_ms,
+                erro=f"Falha ao processar PDF: {exc}",
             )
-        imagens = renderizar_paginas_pdf(conteudo)
     else:
         imagens = [conteudo]
 
