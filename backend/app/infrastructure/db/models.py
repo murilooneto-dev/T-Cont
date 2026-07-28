@@ -1,6 +1,9 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.enums import NaturezaConta
@@ -125,8 +128,19 @@ class LoteProcessamentoModel(Base):
 
 class ExtracaoModel(Base):
     __tablename__ = "extracoes"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    empresa_id: Mapped[int] = mapped_column(ForeignKey("empresas.id"), nullable=False)
+    documento_id: Mapped[int] = mapped_column(
+        ForeignKey("documentos.id"), nullable=False, unique=True
+    )
+    pagador_nome: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pagador_documento: Mapped[str | None] = mapped_column(String(14), nullable=True)
+    recebedor_nome: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    recebedor_documento: Mapped[str | None] = mapped_column(String(14), nullable=True)
+    valor: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    data_pagamento: Mapped[date | None] = mapped_column(Date, nullable=True)
+    tipo_documento: Mapped[str] = mapped_column(String(20), nullable=False, default="OUTRO")
+    banco_nome: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, nullable=False
     )

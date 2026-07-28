@@ -27,3 +27,11 @@ class StatusLote(str, Enum):
     CONCLUIDO = "CONCLUIDO"
     CANCELADO = "CANCELADO"
     FALHOU = "FALHOU"
+
+
+class TipoDocumento(str, Enum):
+    PIX = "PIX"
+    TED = "TED"
+    DOC = "DOC"
+    BOLETO = "BOLETO"
+    OUTRO = "OUTRO"
