@@ -29,6 +29,7 @@ export function EmpresasPage() {
   useEffect(() => {
     if (empresaSelecionadaId === null) {
       setDocumentos([]);
+      setLote(null);
       return;
     }
     api.documentos.list(empresaSelecionadaId).then(setDocumentos);
