@@ -1,5 +1,6 @@
 import type { Empresa, EmpresaCreateInput } from "../types/empresa";
 import type { Conta, ImportPreview, PlanoContas } from "../types/planoContas";
+import type { Documento, DocumentoResultado, Lote, UploadItemResultado } from "../types/documento";
 
 const BASE_URL = "http://localhost:8000";
 
@@ -50,5 +51,25 @@ export const api = {
         body: formData,
       });
     },
+  },
+  documentos: {
+    upload: (empresaId: number, arquivos: File[]) => {
+      const formData = new FormData();
+      arquivos.forEach((arquivo) => formData.append("arquivos", arquivo));
+      return request<UploadItemResultado[]>(`/empresas/${empresaId}/documentos`, {
+        method: "POST",
+        body: formData,
+      });
+    },
+    list: (empresaId: number) => request<Documento[]>(`/empresas/${empresaId}/documentos`),
+    resultado: (documentoId: number) =>
+      request<DocumentoResultado>(`/documentos/${documentoId}/resultado`),
+  },
+  lotes: {
+    processar: (empresaId: number) =>
+      request<Lote>(`/empresas/${empresaId}/documentos/processar`, { method: "POST" }),
+    status: (loteId: number) => request<Lote>(`/lotes/${loteId}`),
+    cancelar: (loteId: number) =>
+      request<Lote>(`/lotes/${loteId}/cancelar`, { method: "POST" }),
   },
 };
