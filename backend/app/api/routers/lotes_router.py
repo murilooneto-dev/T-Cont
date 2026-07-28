@@ -7,10 +7,15 @@ from app.application.use_cases.lote_use_cases import (
     CancelarLoteUseCase,
     IniciarProcessamentoUseCase,
     ObterStatusLoteUseCase,
-    processar_lote_em_background,
 )
 from app.core.config import settings
-from app.core.exceptions import EmpresaNaoEncontrada, LoteNaoEncontrado
+from app.core.exceptions import (
+    EmpresaNaoEncontrada,
+    LoteNaoEncontrado,
+    LoteNaoPodeSerCancelado,
+    NenhumDocumentoPendente,
+)
+from app.infrastructure.workers.lote_worker import processar_lote_em_background
 from app.infrastructure.repositories.sqlalchemy_documento_repository import (
     SqlAlchemyDocumentoRepository,
 )
@@ -34,19 +39,21 @@ def processar_documentos(
     lote_repo = SqlAlchemyLoteProcessamentoRepository(db)
     empresa_repo = SqlAlchemyEmpresaRepository(db)
     try:
-        lote = IniciarProcessamentoUseCase(documento_repo, lote_repo, empresa_repo).executar(
-            empresa_id
-        )
+        lote, documento_ids = IniciarProcessamentoUseCase(
+            documento_repo, lote_repo, empresa_repo
+        ).executar(empresa_id)
     except EmpresaNaoEncontrada as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except NenhumDocumentoPendente as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    documento_ids = [d.id for d in documento_repo.listar_pendentes_por_empresa(empresa_id)]
+    # Commit antes de agendar: o worker abre a própria sessão e precisa
+    # enxergar o lote e os documentos já marcados como PROCESSANDO.
     db.commit()
 
-    if documento_ids:
-        background_tasks.add_task(
-            processar_lote_em_background, lote.id, documento_ids, settings.storage_root
-        )
+    background_tasks.add_task(
+        processar_lote_em_background, lote.id, documento_ids, settings.storage_root
+    )
     return lote
 
 
@@ -66,3 +73,5 @@ def cancelar_lote(lote_id: int, db: Session = Depends(get_db)):
         return CancelarLoteUseCase(repo).executar(lote_id)
     except LoteNaoEncontrado as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except LoteNaoPodeSerCancelado as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

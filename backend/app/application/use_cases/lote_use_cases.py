@@ -1,17 +1,16 @@
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from datetime import datetime, timezone
-from pathlib import Path
-
 from app.application.repositories import (
     DocumentoRepository,
     EmpresaRepository,
     LoteProcessamentoRepository,
-    OcrResultadoRepository,
 )
-from app.core.exceptions import EmpresaNaoEncontrada, LoteNaoEncontrado
-from app.domain.entities import LoteProcessamento, OcrResultado
+from app.core.exceptions import (
+    EmpresaNaoEncontrada,
+    LoteNaoEncontrado,
+    LoteNaoPodeSerCancelado,
+    NenhumDocumentoPendente,
+)
+from app.domain.entities import LoteProcessamento
 from app.domain.enums import StatusDocumento, StatusLote
-from app.infrastructure.ocr.pipeline import processar_documento
 
 
 class IniciarProcessamentoUseCase:
@@ -25,13 +24,40 @@ class IniciarProcessamentoUseCase:
         self._lote_repo = lote_repo
         self._empresa_repo = empresa_repo
 
-    def executar(self, empresa_id: int) -> LoteProcessamento:
+    def executar(self, empresa_id: int) -> tuple[LoteProcessamento, list[int]]:
+        """Cria o lote e "reivindica" os documentos pendentes marcando-os como
+        PROCESSANDO.
+
+        A marcação acontece aqui (e não no worker em background) para fechar a
+        janela de duplo clique no botão "Processar": assim que este use case
+        retorna, os documentos já não aparecem mais em
+        `listar_pendentes_por_empresa`, então uma segunda chamada não consegue
+        reprocessar os mesmos documentos — o que causaria violação da constraint
+        UNIQUE de `ocr_resultados.documento_id`.
+
+        Retorna o lote e os ids dos documentos reivindicados (o chamador não
+        pode mais consultar os pendentes depois, justamente porque a lista já
+        foi esvaziada por esta reivindicação).
+        """
         if self._empresa_repo.obter_por_id(empresa_id) is None:
             raise EmpresaNaoEncontrada(empresa_id)
 
         pendentes = self._documento_repo.listar_pendentes_por_empresa(empresa_id)
+        if not pendentes:
+            # Sem isso um lote com total_documentos=0 ficaria preso em
+            # EM_ANDAMENTO para sempre (nada em background para concluí-lo).
+            raise NenhumDocumentoPendente(empresa_id)
+
         lote = LoteProcessamento(id=None, empresa_id=empresa_id, total_documentos=len(pendentes))
-        return self._lote_repo.criar(lote)
+        lote_criado = self._lote_repo.criar(lote)
+
+        documento_ids = []
+        for documento in pendentes:
+            documento.status = StatusDocumento.PROCESSANDO
+            self._documento_repo.atualizar(documento)
+            documento_ids.append(documento.id)
+
+        return lote_criado, documento_ids
 
 
 class ObterStatusLoteUseCase:
@@ -51,75 +77,7 @@ class CancelarLoteUseCase:
 
     def executar(self, lote_id: int) -> LoteProcessamento:
         lote = ObterStatusLoteUseCase(self._repo).executar(lote_id)
+        if lote.status != StatusLote.EM_ANDAMENTO:
+            raise LoteNaoPodeSerCancelado(lote_id, lote.status.value)
         lote.status = StatusLote.CANCELADO
         return self._repo.atualizar(lote)
-
-
-def processar_lote_em_background(lote_id: int, documento_ids: list[int], storage_root: str) -> None:
-    """Runs after the HTTP response returns. Builds its own DB session and file
-    storage instance since it's no longer inside a request scope. Submits each
-    document's OCR work to a process pool, updating progress after each result,
-    and stops submitting new work once the batch is marked CANCELADO."""
-    from app.infrastructure.db.session import SessionLocal
-    from app.infrastructure.repositories.sqlalchemy_documento_repository import (
-        SqlAlchemyDocumentoRepository,
-    )
-    from app.infrastructure.repositories.sqlalchemy_lote_processamento_repository import (
-        SqlAlchemyLoteProcessamentoRepository,
-    )
-    from app.infrastructure.repositories.sqlalchemy_ocr_resultado_repository import (
-        SqlAlchemyOcrResultadoRepository,
-    )
-    from app.infrastructure.storage.file_storage import LocalFileStorageService
-
-    session = SessionLocal()
-    try:
-        documento_repo = SqlAlchemyDocumentoRepository(session)
-        resultado_repo = SqlAlchemyOcrResultadoRepository(session)
-        lote_repo = SqlAlchemyLoteProcessamentoRepository(session)
-        storage = LocalFileStorageService(Path(storage_root))
-
-        with ProcessPoolExecutor() as pool:
-            futuros = {}
-            for documento_id in documento_ids:
-                lote_atual = lote_repo.obter_por_id(lote_id)
-                if lote_atual is None or lote_atual.status == StatusLote.CANCELADO:
-                    break
-                documento = documento_repo.obter_por_id(documento_id)
-                conteudo = storage.ler(documento.caminho_arquivo)
-                futuro = pool.submit(processar_documento, conteudo, documento.extensao)
-                futuros[futuro] = documento_id
-
-            for futuro in as_completed(futuros):
-                documento_id = futuros[futuro]
-                documento = documento_repo.obter_por_id(documento_id)
-                resultado_pipeline = futuro.result()
-
-                if resultado_pipeline.erro:
-                    documento.status = StatusDocumento.ERRO
-                    documento.mensagem_erro = resultado_pipeline.erro
-                else:
-                    documento.status = StatusDocumento.CONCLUIDO
-                    resultado_repo.criar(
-                        OcrResultado(
-                            id=None, documento_id=documento_id,
-                            texto_extraido=resultado_pipeline.texto,
-                            metodo=resultado_pipeline.metodo,
-                            tempo_processamento_ms=resultado_pipeline.tempo_processamento_ms,
-                        )
-                    )
-                documento_repo.atualizar(documento)
-
-                lote_atual = lote_repo.obter_por_id(lote_id)
-                lote_atual.documentos_processados += 1
-                lote_repo.atualizar(lote_atual)
-                session.commit()
-
-        lote_final = lote_repo.obter_por_id(lote_id)
-        if lote_final.status != StatusLote.CANCELADO:
-            lote_final.status = StatusLote.CONCLUIDO
-            lote_final.concluido_em = datetime.now(timezone.utc)
-            lote_repo.atualizar(lote_final)
-            session.commit()
-    finally:
-        session.close()

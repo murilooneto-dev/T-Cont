@@ -88,6 +88,14 @@ export function EmpresasPage() {
     if (empresaSelecionadaId === null) return;
     const novoLote = await api.lotes.processar(empresaSelecionadaId);
     setLote(novoLote);
+    // O backend já marcou os pendentes como PROCESSANDO ao criar o lote; refletir
+    // isso imediatamente desabilita o botão sem esperar o próximo ciclo de polling
+    // (o backend já impede o reprocessamento, isto só evita o clique inútil).
+    setDocumentos((atual) =>
+      atual.map((documento) =>
+        documento.status === "PENDENTE" ? { ...documento, status: "PROCESSANDO" } : documento,
+      ),
+    );
   }
 
   async function handleCancelarLote() {

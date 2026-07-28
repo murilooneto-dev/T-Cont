@@ -26,3 +26,4 @@ class StatusLote(str, Enum):
     EM_ANDAMENTO = "EM_ANDAMENTO"
     CONCLUIDO = "CONCLUIDO"
     CANCELADO = "CANCELADO"
+    FALHOU = "FALHOU"

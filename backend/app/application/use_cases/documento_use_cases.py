@@ -28,6 +28,15 @@ class UploadarDocumentosUseCase:
 
         resultados: list[ResultadoUploadDTO] = []
         for arquivo in arquivos:
+            if arquivo.erro_previo:
+                resultados.append(
+                    ResultadoUploadDTO(
+                        documento=None,
+                        nome_original=arquivo.nome_original,
+                        erro=arquivo.erro_previo,
+                    )
+                )
+                continue
             try:
                 nome_fisico, caminho_relativo, extensao = self._storage.salvar(
                     empresa_id, arquivo.nome_original, arquivo.conteudo

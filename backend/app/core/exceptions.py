@@ -47,3 +47,17 @@ class DocumentoNaoEncontrado(DomainError):
 class LoteNaoEncontrado(DomainError):
     def __init__(self, lote_id: int):
         super().__init__(f"Lote de processamento {lote_id} não encontrado.")
+
+
+class NenhumDocumentoPendente(DomainError):
+    def __init__(self, empresa_id: int):
+        super().__init__(
+            f"A empresa {empresa_id} não possui documentos pendentes para processar."
+        )
+
+
+class LoteNaoPodeSerCancelado(DomainError):
+    def __init__(self, lote_id: int, status: str):
+        super().__init__(
+            f"O lote {lote_id} não pode ser cancelado porque já está {status}."
+        )

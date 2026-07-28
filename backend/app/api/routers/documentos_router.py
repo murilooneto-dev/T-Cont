@@ -14,6 +14,7 @@ from app.application.use_cases.documento_use_cases import (
     ObterResultadoUseCase,
     UploadarDocumentosUseCase,
 )
+from app.core.config import settings
 from app.core.exceptions import DocumentoNaoEncontrado, EmpresaNaoEncontrada
 from app.infrastructure.repositories.sqlalchemy_documento_repository import (
     SqlAlchemyDocumentoRepository,
@@ -24,9 +25,35 @@ from app.infrastructure.repositories.sqlalchemy_empresa_repository import (
 from app.infrastructure.repositories.sqlalchemy_ocr_resultado_repository import (
     SqlAlchemyOcrResultadoRepository,
 )
-from app.infrastructure.storage.file_storage import LocalFileStorageService
+from app.infrastructure.storage.file_storage import (
+    TAMANHO_MAXIMO_BYTES,
+    LocalFileStorageService,
+)
 
 router = APIRouter(tags=["documentos"])
+
+async def _ler_arquivo_limitado(arquivo: UploadFile) -> ArquivoUploadDTO:
+    """Lê o upload sem nunca materializar mais que o limite + 1 byte.
+
+    Antes, o handler fazia `await arquivo.read()` sem limite e só depois o
+    tamanho era validado — ou seja, o arquivo inteiro já estava em memória
+    quando a validação rodava. Aqui checamos `UploadFile.size` (populado pelo
+    parser multipart do Starlette) quando disponível e, de qualquer forma,
+    lemos com um teto: mesmo que `size` não venha preenchido, no máximo
+    `TAMANHO_MAXIMO_BYTES + 1` bytes entram em memória.
+    """
+    nome = arquivo.filename or "arquivo"
+    limite_mb = max(TAMANHO_MAXIMO_BYTES // (1024 * 1024), 1)
+    erro = f"Arquivo excede o tamanho máximo de {limite_mb}MB."
+
+    tamanho = getattr(arquivo, "size", None)
+    if tamanho is not None and tamanho > TAMANHO_MAXIMO_BYTES:
+        return ArquivoUploadDTO(nome_original=nome, conteudo=b"", erro_previo=erro)
+
+    conteudo = await arquivo.read(TAMANHO_MAXIMO_BYTES + 1)
+    if len(conteudo) > TAMANHO_MAXIMO_BYTES:
+        return ArquivoUploadDTO(nome_original=nome, conteudo=b"", erro_previo=erro)
+    return ArquivoUploadDTO(nome_original=nome, conteudo=conteudo)
 
 
 @router.post(
@@ -38,12 +65,18 @@ async def upload_documentos(
     db: Session = Depends(get_db),
     storage: LocalFileStorageService = Depends(get_storage),
 ):
+    if len(arquivos) > settings.max_arquivos_por_upload:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Envie no máximo {settings.max_arquivos_por_upload} arquivos por requisição "
+                f"(recebidos {len(arquivos)})."
+            ),
+        )
+
     documento_repo = SqlAlchemyDocumentoRepository(db)
     empresa_repo = SqlAlchemyEmpresaRepository(db)
-    dtos = [
-        ArquivoUploadDTO(nome_original=arquivo.filename or "arquivo", conteudo=await arquivo.read())
-        for arquivo in arquivos
-    ]
+    dtos = [await _ler_arquivo_limitado(arquivo) for arquivo in arquivos]
     try:
         return UploadarDocumentosUseCase(documento_repo, empresa_repo, storage).executar(
             empresa_id, dtos

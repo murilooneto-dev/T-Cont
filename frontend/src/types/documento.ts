@@ -1,6 +1,6 @@
 export type StatusDocumento = "PENDENTE" | "PROCESSANDO" | "CONCLUIDO" | "ERRO";
 export type MetodoOcr = "PDF_NATIVO" | "PADDLEOCR" | "TESSERACT";
-export type StatusLote = "EM_ANDAMENTO" | "CONCLUIDO" | "CANCELADO";
+export type StatusLote = "EM_ANDAMENTO" | "CONCLUIDO" | "CANCELADO" | "FALHOU";
 
 export interface Documento {
   id: number;

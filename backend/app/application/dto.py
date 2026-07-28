@@ -44,6 +44,10 @@ class AtualizarContaDTO:
 class ArquivoUploadDTO:
     nome_original: str
     conteudo: bytes
+    # Preenchido quando a camada de transporte já rejeitou o arquivo (ex.: tamanho
+    # acima do limite detectado antes de bufferizar todo o conteúdo). O use case
+    # apenas repassa o erro, sem tentar salvar.
+    erro_previo: str | None = None
 
 
 @dataclass
