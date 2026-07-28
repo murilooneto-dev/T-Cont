@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { ContasTree } from "../components/ContasTree";
+import { DocumentoDropzone } from "../components/DocumentoDropzone";
+import { DocumentoList } from "../components/DocumentoList";
 import { EmpresaForm } from "../components/EmpresaForm";
 import { EmpresaList } from "../components/EmpresaList";
 import { PlanoContasImport } from "../components/PlanoContasImport";
+import { ProgressoLote } from "../components/ProgressoLote";
+import type { Documento, Lote } from "../types/documento";
 import type { Empresa } from "../types/empresa";
 import type { Conta, PlanoContas } from "../types/planoContas";
 
@@ -14,10 +18,42 @@ export function EmpresasPage() {
   const [planoSelecionadoId, setPlanoSelecionadoId] = useState<number | null>(null);
   const [contas, setContas] = useState<Conta[]>([]);
   const [nomePlano, setNomePlano] = useState("");
+  const [documentos, setDocumentos] = useState<Documento[]>([]);
+  const [lote, setLote] = useState<Lote | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     api.empresas.list().then(setEmpresas);
   }, []);
+
+  useEffect(() => {
+    if (empresaSelecionadaId === null) {
+      setDocumentos([]);
+      return;
+    }
+    api.documentos.list(empresaSelecionadaId).then(setDocumentos);
+  }, [empresaSelecionadaId]);
+
+  useEffect(() => {
+    if (lote === null || lote.status !== "EM_ANDAMENTO") {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
+    }
+    pollingRef.current = setInterval(async () => {
+      const atualizado = await api.lotes.status(lote.id);
+      setLote(atualizado);
+      if (atualizado.status !== "EM_ANDAMENTO" && empresaSelecionadaId !== null) {
+        const documentosAtualizados = await api.documentos.list(empresaSelecionadaId);
+        setDocumentos(documentosAtualizados);
+      }
+    }, 2000);
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [lote, empresaSelecionadaId]);
 
   useEffect(() => {
     setPlanoSelecionadoId(null);
@@ -45,6 +81,18 @@ export function EmpresasPage() {
     const plano = await api.planosContas.create(empresaSelecionadaId, nomePlano);
     setPlanos((atual) => [...atual, plano]);
     setNomePlano("");
+  }
+
+  async function handleProcessar() {
+    if (empresaSelecionadaId === null) return;
+    const novoLote = await api.lotes.processar(empresaSelecionadaId);
+    setLote(novoLote);
+  }
+
+  async function handleCancelarLote() {
+    if (lote === null) return;
+    const cancelado = await api.lotes.cancelar(lote.id);
+    setLote(cancelado);
   }
 
   return (
@@ -98,6 +146,25 @@ export function EmpresasPage() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {empresaSelecionadaId !== null && (
+        <section className="flex flex-col gap-3 border-t border-slate-200 pt-4">
+          <h2 className="text-sm font-semibold text-slate-700">Comprovantes</h2>
+          <DocumentoDropzone
+            empresaId={empresaSelecionadaId}
+            onUploaded={(novos) => setDocumentos((atual) => [...atual, ...novos])}
+          />
+          <button
+            onClick={handleProcessar}
+            disabled={documentos.every((d) => d.status !== "PENDENTE")}
+            className="self-start rounded bg-slate-800 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+          >
+            Processar
+          </button>
+          {lote && <ProgressoLote lote={lote} onCancelar={handleCancelarLote} />}
+          <DocumentoList documentos={documentos} />
         </section>
       )}
 

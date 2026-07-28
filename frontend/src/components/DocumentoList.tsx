@@ -1,0 +1,64 @@
+import { useState } from "react";
+import { api } from "../api/client";
+import type { Documento, DocumentoResultado } from "../types/documento";
+
+function corStatus(status: Documento["status"]): string {
+  switch (status) {
+    case "CONCLUIDO":
+      return "text-green-700";
+    case "ERRO":
+      return "text-red-700";
+    case "PROCESSANDO":
+      return "text-amber-700";
+    default:
+      return "text-slate-500";
+  }
+}
+
+export function DocumentoList({ documentos }: { documentos: Documento[] }) {
+  const [resultadoAberto, setResultadoAberto] = useState<DocumentoResultado | null>(null);
+
+  async function verResultado(documentoId: number) {
+    const resultado = await api.documentos.resultado(documentoId);
+    setResultadoAberto(resultado);
+  }
+
+  if (documentos.length === 0) {
+    return <p className="text-sm text-slate-500">Nenhum documento enviado ainda.</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <ul className="flex flex-col gap-1">
+        {documentos.map((documento) => (
+          <li
+            key={documento.id}
+            className="flex items-center justify-between rounded border border-slate-200 px-3 py-1.5 text-sm"
+          >
+            <span>{documento.nome_exibicao}</span>
+            <div className="flex items-center gap-2">
+              <span className={corStatus(documento.status)}>{documento.status}</span>
+              {documento.status === "CONCLUIDO" && (
+                <button
+                  onClick={() => verResultado(documento.id)}
+                  className="rounded bg-slate-200 px-2 py-0.5 text-xs"
+                >
+                  Ver texto
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {resultadoAberto && (
+        <div className="rounded border border-slate-300 bg-slate-50 p-3 text-xs">
+          <p className="mb-1 font-semibold">
+            Método: {resultadoAberto.resultado?.metodo} (
+            {resultadoAberto.resultado?.tempo_processamento_ms}ms)
+          </p>
+          <pre className="whitespace-pre-wrap">{resultadoAberto.resultado?.texto_extraido}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
