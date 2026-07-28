@@ -104,7 +104,7 @@ def test_obter_status_lote_inexistente_falha():
         ObterStatusLoteUseCase(lote_repo).executar(999)
 
 
-def _lote_em_andamento(lote_repo):
+def _lote_em_andamento_com_documento(lote_repo):
     empresa_repo = FakeEmpresaRepository()
     empresa = _empresa(empresa_repo)
     documento_repo = FakeDocumentoRepository()
@@ -112,26 +112,41 @@ def _lote_em_andamento(lote_repo):
     lote, _ = IniciarProcessamentoUseCase(documento_repo, lote_repo, empresa_repo).executar(
         empresa.id
     )
-    return lote
+    return lote, documento_repo
 
 
 def test_cancelar_lote_muda_status_para_cancelado():
     lote_repo = FakeLoteProcessamentoRepository()
-    lote = _lote_em_andamento(lote_repo)
+    lote, documento_repo = _lote_em_andamento_com_documento(lote_repo)
 
-    cancelado = CancelarLoteUseCase(lote_repo).executar(lote.id)
+    cancelado = CancelarLoteUseCase(lote_repo, documento_repo).executar(lote.id)
 
     assert cancelado.status == StatusLote.CANCELADO
+
+
+def test_cancelar_lote_reseta_documentos_processando_para_pendente():
+    """Regressão: documentos reivindicados (PROCESSANDO) por um lote cancelado
+    antes do worker rodar ficavam presos para sempre, já que
+    `listar_pendentes_por_empresa` só enxerga PENDENTE."""
+    lote_repo = FakeLoteProcessamentoRepository()
+    lote, documento_repo = _lote_em_andamento_com_documento(lote_repo)
+
+    CancelarLoteUseCase(lote_repo, documento_repo).executar(lote.id)
+
+    documentos = documento_repo.listar_por_empresa(lote.empresa_id)
+    assert len(documentos) == 1
+    assert documentos[0].status == StatusDocumento.PENDENTE
+    assert documento_repo.listar_pendentes_por_empresa(lote.empresa_id) == documentos
 
 
 @pytest.mark.parametrize("status", [StatusLote.CONCLUIDO, StatusLote.CANCELADO, StatusLote.FALHOU])
 def test_cancelar_lote_em_estado_terminal_falha(status):
     lote_repo = FakeLoteProcessamentoRepository()
-    lote = _lote_em_andamento(lote_repo)
+    lote, documento_repo = _lote_em_andamento_com_documento(lote_repo)
     lote.status = status
     lote_repo.atualizar(lote)
 
     with pytest.raises(LoteNaoPodeSerCancelado):
-        CancelarLoteUseCase(lote_repo).executar(lote.id)
+        CancelarLoteUseCase(lote_repo, documento_repo).executar(lote.id)
 
     assert lote_repo.obter_por_id(lote.id).status == status

@@ -21,7 +21,27 @@ from app.infrastructure.ocr.pipeline import processar_documento
 logger = logging.getLogger(__name__)
 
 
-def _marcar_lote_como_falhou(session_factory: Callable[[], object], lote_id: int) -> None:
+def _resetar_documentos_processando_para_pendente(documento_repo, documento_ids: list[int]) -> None:
+    """Devolve à fila (PENDENTE) documentos reivindicados (PROCESSANDO) que
+    nunca chegaram a terminar.
+
+    Sem isto, documentos de um lote que falha ou é cancelado ficam presos em
+    PROCESSANDO para sempre: `listar_pendentes_por_empresa` filtra
+    estritamente por PENDENTE, então nunca mais seriam selecionados em um
+    lote futuro. Documentos que já chegaram a CONCLUIDO ou ERRO são
+    preservados — só os que ainda estão PROCESSANDO (nunca processados) são
+    revertidos.
+    """
+    for documento_id in documento_ids:
+        documento = documento_repo.obter_por_id(documento_id)
+        if documento is not None and documento.status == StatusDocumento.PROCESSANDO:
+            documento.status = StatusDocumento.PENDENTE
+            documento_repo.atualizar(documento)
+
+
+def _marcar_lote_como_falhou(
+    session_factory: Callable[[], object], lote_id: int, documento_ids: list[int]
+) -> None:
     """Marca o lote como FALHOU usando uma sessão nova e curta.
 
     A sessão do processamento pode estar em estado inconsistente (transação
@@ -30,6 +50,9 @@ def _marcar_lote_como_falhou(session_factory: Callable[[], object], lote_id: int
     recurso de um background task que não tem chamador para receber o erro.
     """
     try:
+        from app.infrastructure.repositories.sqlalchemy_documento_repository import (
+            SqlAlchemyDocumentoRepository,
+        )
         from app.infrastructure.repositories.sqlalchemy_lote_processamento_repository import (
             SqlAlchemyLoteProcessamentoRepository,
         )
@@ -44,6 +67,10 @@ def _marcar_lote_como_falhou(session_factory: Callable[[], object], lote_id: int
             lote.status = StatusLote.FALHOU
             lote.concluido_em = datetime.now(timezone.utc)
             lote_repo.atualizar(lote)
+
+            documento_repo = SqlAlchemyDocumentoRepository(session)
+            _resetar_documentos_processando_para_pendente(documento_repo, documento_ids)
+
             session.commit()
         finally:
             session.close()
@@ -151,7 +178,13 @@ def processar_lote_em_background(
         lote_final = lote_repo.obter_por_id(lote_id)
         if lote_final is None:
             logger.warning("Lote %s não encontrado ao finalizar o processamento.", lote_id)
-        elif lote_final.status != StatusLote.CANCELADO:
+        elif lote_final.status == StatusLote.CANCELADO:
+            # Documentos ainda não submetidos ao pool no momento do cancelamento
+            # continuam PROCESSANDO — sem isto ficariam presos para sempre, já
+            # que `listar_pendentes_por_empresa` só enxerga PENDENTE.
+            _resetar_documentos_processando_para_pendente(documento_repo, documento_ids)
+            session.commit()
+        else:
             lote_final.status = StatusLote.CONCLUIDO
             lote_final.concluido_em = datetime.now(timezone.utc)
             lote_repo.atualizar(lote_final)
@@ -164,6 +197,6 @@ def processar_lote_em_background(
             session.rollback()
         except Exception:  # pragma: no cover - sessão já inutilizável
             logger.exception("Falha no rollback da sessão do lote %s.", lote_id)
-        _marcar_lote_como_falhou(session_factory, lote_id)
+        _marcar_lote_como_falhou(session_factory, lote_id, documento_ids)
     finally:
         session.close()

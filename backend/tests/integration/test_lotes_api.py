@@ -291,8 +291,12 @@ def test_worker_para_de_submeter_apos_cancelamento(ambiente, empresa_id, monkeyp
     # Só o primeiro documento chegou a ser submetido ao pool.
     assert lote.documentos_processados == 1
     assert _ler_documento(ambiente, documento_ids[0]).status == StatusDocumento.CONCLUIDO
+    # Os demais nunca chegaram a ser processados: voltam para PENDENTE em vez
+    # de ficarem presos em PROCESSANDO para sempre (regressão do commit
+    # caf4ebd — antes ficavam PROCESSANDO e nunca mais eram selecionáveis por
+    # um lote futuro).
     for documento_id in documento_ids[1:]:
-        assert _ler_documento(ambiente, documento_id).status == StatusDocumento.PROCESSANDO
+        assert _ler_documento(ambiente, documento_id).status == StatusDocumento.PENDENTE
 
 
 def test_cancelar_lote_em_andamento_via_api(ambiente, empresa_id):
@@ -308,3 +312,68 @@ def test_cancelar_lote_em_andamento_via_api(ambiente, empresa_id):
 
 def test_cancelar_lote_inexistente_retorna_404(client):
     assert client.post("/lotes/999/cancelar").status_code == 404
+
+
+def test_worker_reseta_documentos_processando_para_pendente_quando_lote_falha(
+    ambiente, empresa_id, monkeypatch
+):
+    """Regressão: sem o reset, um documento PROCESSANDO de um lote que FALHOU
+    ficava preso para sempre — nunca mais aparecia em
+    `listar_pendentes_por_empresa`, e `POST .../processar` retornava 400
+    NenhumDocumentoPendente indefinidamente."""
+    lote_id, documento_ids = _preparar_lote_sem_executar(ambiente, empresa_id, 1)
+
+    class StorageQuebrado(LocalFileStorageService):
+        def ler(self, caminho_relativo: str) -> bytes:
+            raise FileNotFoundError(caminho_relativo)
+
+    monkeypatch.setattr(file_storage, "LocalFileStorageService", StorageQuebrado)
+
+    processar_lote_em_background(
+        lote_id, documento_ids, str(ambiente.storage_root),
+        session_factory=ambiente.session_factory,
+    )
+
+    lote = _ler_lote(ambiente, lote_id)
+    assert lote.status == StatusLote.FALHOU
+    assert _ler_documento(ambiente, documento_ids[0]).status == StatusDocumento.PENDENTE
+
+
+def test_novo_lote_pode_ser_iniciado_apos_lote_anterior_falhar(ambiente, empresa_id, monkeypatch):
+    """Caminho de recuperação real: depois que o fix devolve os documentos
+    presos para PENDENTE, um novo POST .../processar deve conseguir
+    reivindicá-los em vez de continuar retornando 400 para sempre."""
+    client = ambiente.client
+    lote_id, documento_ids = _preparar_lote_sem_executar(ambiente, empresa_id, 1)
+
+    class StorageQuebrado(LocalFileStorageService):
+        def ler(self, caminho_relativo: str) -> bytes:
+            raise FileNotFoundError(caminho_relativo)
+
+    # Escopo isolado (`monkeypatch.context()`) para que o patch do storage
+    # quebrado seja revertido sozinho ao sair do `with`, sem afetar os outros
+    # patches feitos pela fixture `ambiente` (session_factory do worker etc).
+    with monkeypatch.context() as m:
+        m.setattr(file_storage, "LocalFileStorageService", StorageQuebrado)
+        processar_lote_em_background(
+            lote_id, documento_ids, str(ambiente.storage_root),
+            session_factory=ambiente.session_factory,
+        )
+    assert _ler_lote(ambiente, lote_id).status == StatusLote.FALHOU
+
+    resposta = client.post(f"/empresas/{empresa_id}/documentos/processar")
+
+    assert resposta.status_code == 201
+    novo_lote = resposta.json()
+    assert novo_lote["id"] != lote_id
+    assert novo_lote["total_documentos"] == 1
+
+    status_final = None
+    for _ in range(20):
+        status_final = client.get(f"/lotes/{novo_lote['id']}").json()
+        if status_final["status"] != "EM_ANDAMENTO":
+            break
+        time.sleep(0.5)
+
+    assert status_final["status"] == "CONCLUIDO"
+    assert status_final["documentos_processados"] == 1

@@ -72,12 +72,26 @@ class ObterStatusLoteUseCase:
 
 
 class CancelarLoteUseCase:
-    def __init__(self, repo: LoteProcessamentoRepository):
+    def __init__(self, repo: LoteProcessamentoRepository, documento_repo: DocumentoRepository):
         self._repo = repo
+        self._documento_repo = documento_repo
 
     def executar(self, lote_id: int) -> LoteProcessamento:
         lote = ObterStatusLoteUseCase(self._repo).executar(lote_id)
         if lote.status != StatusLote.EM_ANDAMENTO:
             raise LoteNaoPodeSerCancelado(lote_id, lote.status.value)
         lote.status = StatusLote.CANCELADO
-        return self._repo.atualizar(lote)
+        lote_cancelado = self._repo.atualizar(lote)
+
+        # Documentos que este lote reivindicou (PROCESSANDO) mas que o worker
+        # ainda não chegou a processar ficariam presos para sempre — nunca mais
+        # apareceriam em `listar_pendentes_por_empresa`. Não há FK lote_id em
+        # `documentos`, então usamos a claim PROCESSANDO como aproximação de
+        # "pertence a este lote" (válido porque só existe um lote ativo por
+        # empresa por vez neste design).
+        for documento in self._documento_repo.listar_por_empresa(lote.empresa_id):
+            if documento.status == StatusDocumento.PROCESSANDO:
+                documento.status = StatusDocumento.PENDENTE
+                self._documento_repo.atualizar(documento)
+
+        return lote_cancelado

@@ -69,8 +69,9 @@ def obter_status_lote(lote_id: int, db: Session = Depends(get_db)):
 @router.post("/lotes/{lote_id}/cancelar", response_model=LoteOut)
 def cancelar_lote(lote_id: int, db: Session = Depends(get_db)):
     repo = SqlAlchemyLoteProcessamentoRepository(db)
+    documento_repo = SqlAlchemyDocumentoRepository(db)
     try:
-        return CancelarLoteUseCase(repo).executar(lote_id)
+        return CancelarLoteUseCase(repo, documento_repo).executar(lote_id)
     except LoteNaoEncontrado as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except LoteNaoPodeSerCancelado as exc:
