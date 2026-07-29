@@ -1,0 +1,31 @@
+from app.infrastructure.extracao.nomes import extrair_pagador, extrair_recebedor
+
+
+def test_extrai_pagador_por_rotulo():
+    texto = "Pagador: Joao da Silva Ltda\nValor: R$100,00"
+    assert extrair_pagador(texto) == "JOAO DA SILVA"
+
+
+def test_extrai_pagador_por_rotulo_de():
+    texto = "De: Maria Souza ME\nData: 01/01/2026"
+    assert extrair_pagador(texto) == "MARIA SOUZA"
+
+
+def test_extrai_recebedor_por_rotulo_favorecido():
+    texto = "Favorecido: Energisa S.A.\nBanco: Itaú"
+    assert extrair_recebedor(texto) == "ENERGISA"
+
+
+def test_extrai_recebedor_por_rotulo_para():
+    texto = "Para: Claro S/A\nValor pago"
+    assert extrair_recebedor(texto) == "CLARO"
+
+
+def test_normaliza_espacos_multiplos():
+    texto = "Pagador:   Joao    da   Silva\nOutro campo"
+    assert extrair_pagador(texto) == "JOAO DA SILVA"
+
+
+def test_sem_rotulo_retorna_none():
+    assert extrair_pagador("Nenhum rótulo de pagador aqui.") is None
+    assert extrair_recebedor("Nenhum rótulo de recebedor aqui.") is None
