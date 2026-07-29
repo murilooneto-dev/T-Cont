@@ -1,3 +1,5 @@
+import re
+
 _BANCOS_CONHECIDOS = [
     ("ITAU", "Itaú"),
     ("ITAÚ", "Itaú"),
@@ -17,6 +19,7 @@ _BANCOS_CONHECIDOS = [
 def extrair_banco(texto: str) -> str | None:
     texto_upper = texto.upper()
     for busca, exibicao in _BANCOS_CONHECIDOS:
-        if busca in texto_upper:
+        padrao = re.compile(rf"\b{re.escape(busca)}\b")
+        if padrao.search(texto_upper):
             return exibicao
     return None

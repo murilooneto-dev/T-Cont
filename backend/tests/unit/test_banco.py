@@ -15,3 +15,15 @@ def test_extrai_nubank():
 
 def test_sem_banco_conhecido_retorna_none():
     assert extrair_banco("Comprovante de um banco não listado") is None
+
+
+def test_nao_confunde_inter_com_internet():
+    assert extrair_banco("Comprovante de transferência via internet banking") is None
+
+
+def test_nao_confunde_inter_com_internacional():
+    assert extrair_banco("Pagamento de remessa internacional processado") is None
+
+
+def test_ainda_extrai_inter_quando_e_o_banco():
+    assert extrair_banco("Banco Inter S.A. - Comprovante") == "Inter"
