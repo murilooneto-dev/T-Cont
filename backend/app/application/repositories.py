@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 
-from app.domain.entities import Conta, Documento, Empresa, LoteProcessamento, OcrResultado, PlanoContas
+from app.domain.entities import (
+    Conta, Documento, Empresa, Extracao, LoteProcessamento, OcrResultado, PlanoContas,
+)
 
 
 class EmpresaRepository(ABC):
@@ -85,3 +87,11 @@ class LoteProcessamentoRepository(ABC):
 
     @abstractmethod
     def atualizar(self, lote: LoteProcessamento) -> LoteProcessamento: ...
+
+
+class ExtracaoRepository(ABC):
+    @abstractmethod
+    def criar(self, extracao: Extracao) -> Extracao: ...
+
+    @abstractmethod
+    def obter_por_documento_id(self, documento_id: int) -> Extracao | None: ...

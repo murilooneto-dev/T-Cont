@@ -3,11 +3,14 @@ from app.application.repositories import (
     ContaRepository,
     DocumentoRepository,
     EmpresaRepository,
+    ExtracaoRepository,
     LoteProcessamentoRepository,
     OcrResultadoRepository,
     PlanoContasRepository,
 )
-from app.domain.entities import Conta, Documento, Empresa, LoteProcessamento, OcrResultado, PlanoContas
+from app.domain.entities import (
+    Conta, Documento, Empresa, Extracao, LoteProcessamento, OcrResultado, PlanoContas,
+)
 from app.domain.enums import StatusDocumento
 from app.infrastructure.storage.file_storage import validar_extensao_e_tamanho
 
@@ -160,3 +163,18 @@ class FakeArmazenamentoArquivos(ArmazenamentoArquivos):
 
     def ler(self, caminho_relativo: str) -> bytes:
         return self._arquivos[caminho_relativo]
+
+
+class FakeExtracaoRepository(ExtracaoRepository):
+    def __init__(self):
+        self._items: dict[int, Extracao] = {}
+        self._next_id = 1
+
+    def criar(self, extracao: Extracao) -> Extracao:
+        extracao.id = self._next_id
+        self._items[self._next_id] = extracao
+        self._next_id += 1
+        return extracao
+
+    def obter_por_documento_id(self, documento_id: int) -> Extracao | None:
+        return next((e for e in self._items.values() if e.documento_id == documento_id), None)
