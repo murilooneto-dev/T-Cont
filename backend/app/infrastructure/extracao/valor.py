@@ -2,7 +2,7 @@ import re
 from decimal import Decimal, InvalidOperation
 
 _PADRAO_VALOR = re.compile(r"R\$\s*([\d.]+,\d{2})")
-_PALAVRA_TOTAL = re.compile(r"total", re.IGNORECASE)
+_PALAVRA_TOTAL = re.compile(r"\btotal\b", re.IGNORECASE)
 _JANELA_TOTAL = 30  # caracteres a considerar antes do valor, para checar se "total" aparece perto
 
 
