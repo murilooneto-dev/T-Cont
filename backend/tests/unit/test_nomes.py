@@ -29,3 +29,14 @@ def test_normaliza_espacos_multiplos():
 def test_sem_rotulo_retorna_none():
     assert extrair_pagador("Nenhum rótulo de pagador aqui.") is None
     assert extrair_recebedor("Nenhum rótulo de recebedor aqui.") is None
+
+
+def test_rotulo_de_nao_confunde_com_finalidade():
+    texto = "Finalidade: Pagamento do boleto\nValor: R$50,00"
+    assert extrair_pagador(texto) is None
+
+
+def test_rotulos_na_mesma_linha_nao_vazam():
+    texto = "De: Maria Silva Para: Joao Santos"
+    assert extrair_pagador(texto) == "MARIA SILVA"
+    assert extrair_recebedor(texto) == "JOAO SANTOS"

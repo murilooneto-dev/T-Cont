@@ -7,6 +7,11 @@ _SUFIXOS_SOCIETARIOS = re.compile(
     r"\b(LTDA\.?|ME\.?|EIRELI\.?|S\.?A\.?|S/A)\b\.?", re.IGNORECASE
 )
 
+_TODOS_ROTULOS = sorted(set(_ROTULOS_PAGADOR + _ROTULOS_RECEBEDOR), key=len, reverse=True)
+_PADRAO_PROXIMO_ROTULO = re.compile(
+    r"\b(?:" + "|".join(re.escape(r) for r in _TODOS_ROTULOS) + r")\s*:", re.IGNORECASE
+)
+
 
 def _normalizar_nome(bruto: str) -> str:
     nome = bruto.strip()
@@ -16,12 +21,20 @@ def _normalizar_nome(bruto: str) -> str:
     return nome.upper()
 
 
+def _truncar_no_proximo_rotulo(bruto: str) -> str:
+    match = _PADRAO_PROXIMO_ROTULO.search(bruto)
+    if match:
+        return bruto[: match.start()]
+    return bruto
+
+
 def _extrair_por_rotulos(texto: str, rotulos: list[str]) -> str | None:
     for rotulo in rotulos:
-        padrao = re.compile(rf"{rotulo}\s*:\s*([^\n]+)", re.IGNORECASE)
+        padrao = re.compile(rf"\b{rotulo}\s*:\s*([^\n]+)", re.IGNORECASE)
         match = padrao.search(texto)
         if match:
-            nome = _normalizar_nome(match.group(1))
+            bruto = _truncar_no_proximo_rotulo(match.group(1))
+            nome = _normalizar_nome(bruto)
             if nome:
                 return nome
     return None
