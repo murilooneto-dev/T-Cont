@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
-from app.domain.enums import MetodoOcr, NaturezaConta, StatusDocumento, StatusLote
+from app.domain.enums import MetodoOcr, NaturezaConta, StatusDocumento, StatusLote, TipoDocumento
 
 
 @dataclass
@@ -76,3 +77,18 @@ class LoteProcessamento:
     status: StatusLote = StatusLote.EM_ANDAMENTO
     created_at: datetime | None = None
     concluido_em: datetime | None = None
+
+
+@dataclass
+class Extracao:
+    id: int | None
+    documento_id: int
+    pagador_nome: str | None
+    pagador_documento: str | None
+    recebedor_nome: str | None
+    recebedor_documento: str | None
+    valor: Decimal | None
+    data_pagamento: date | None
+    tipo_documento: TipoDocumento
+    banco_nome: str | None
+    created_at: datetime | None = None
