@@ -25,3 +25,19 @@ def test_nao_duplica_o_mesmo_documento():
 
 def test_texto_sem_documento_retorna_lista_vazia():
     assert extrair_documentos("Nenhum documento fiscal aqui.") == []
+
+
+def test_nao_extrai_de_sequencia_numerica_longa_sem_pontuacao():
+    # NF-e access key: 44 continuous digits (simulating a boleto or invoice number)
+    # Should NOT extract any CPF/CNPJ from within this continuous run
+    nfe_chave = "35230512345678000195550010000012345678901234"
+    texto = f"Chave de acesso: {nfe_chave} do arquivo"
+    resultado = extrair_documentos(texto)
+    assert resultado == []
+
+
+def test_extrai_cpf_sem_pontuacao_com_limites():
+    # Isolated unpunctuated CPF (11 digits) bounded by non-digit characters
+    # Should still extract correctly when surrounded by spaces or text
+    resultado = extrair_documentos("Doc: 12345678900 fim")
+    assert resultado == ["12345678900"]
