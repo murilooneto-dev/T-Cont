@@ -52,6 +52,26 @@ export function DocumentoList({ documentos }: { documentos: Documento[] }) {
       </ul>
       {resultadoAberto && (
         <div className="rounded border border-slate-300 bg-slate-50 p-3 text-xs">
+          {resultadoAberto.extracao && (
+            <div className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1">
+              <span className="font-semibold">Tipo:</span>
+              <span>{resultadoAberto.extracao.tipo_documento}</span>
+              <span className="font-semibold">Pagador:</span>
+              <span>{resultadoAberto.extracao.pagador_nome}</span>
+              <span className="font-semibold">CPF/CNPJ Pagador:</span>
+              <span>{resultadoAberto.extracao.pagador_documento}</span>
+              <span className="font-semibold">Recebedor:</span>
+              <span>{resultadoAberto.extracao.recebedor_nome}</span>
+              <span className="font-semibold">CPF/CNPJ Recebedor:</span>
+              <span>{resultadoAberto.extracao.recebedor_documento}</span>
+              <span className="font-semibold">Valor:</span>
+              <span>{resultadoAberto.extracao.valor}</span>
+              <span className="font-semibold">Data:</span>
+              <span>{resultadoAberto.extracao.data_pagamento}</span>
+              <span className="font-semibold">Banco:</span>
+              <span>{resultadoAberto.extracao.banco_nome}</span>
+            </div>
+          )}
           <p className="mb-1 font-semibold">
             Método: {resultadoAberto.resultado?.metodo} (
             {resultadoAberto.resultado?.tempo_processamento_ms}ms)

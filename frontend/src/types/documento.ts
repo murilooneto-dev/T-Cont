@@ -1,6 +1,7 @@
 export type StatusDocumento = "PENDENTE" | "PROCESSANDO" | "CONCLUIDO" | "ERRO";
 export type MetodoOcr = "PDF_NATIVO" | "PADDLEOCR" | "TESSERACT";
 export type StatusLote = "EM_ANDAMENTO" | "CONCLUIDO" | "CANCELADO" | "FALHOU";
+export type TipoDocumento = "PIX" | "TED" | "DOC" | "BOLETO" | "OUTRO";
 
 export interface Documento {
   id: number;
@@ -27,9 +28,21 @@ export interface OcrResultadoDetalhe {
   tempo_processamento_ms: number;
 }
 
+export interface Extracao {
+  pagador_nome: string;
+  pagador_documento: string;
+  recebedor_nome: string;
+  recebedor_documento: string;
+  valor: string;
+  data_pagamento: string;
+  tipo_documento: TipoDocumento;
+  banco_nome: string;
+}
+
 export interface DocumentoResultado {
   documento: Documento;
   resultado: OcrResultadoDetalhe | null;
+  extracao: Extracao | null;
 }
 
 export interface Lote {
