@@ -1,4 +1,8 @@
-from app.infrastructure.extracao.documento_fiscal import extrair_documentos
+from app.infrastructure.extracao.documento_fiscal import (
+    extrair_documento_pagador,
+    extrair_documento_recebedor,
+    extrair_documentos,
+)
 
 
 def test_extrai_cnpj_com_pontuacao():
@@ -41,3 +45,26 @@ def test_extrai_cpf_sem_pontuacao_com_limites():
     # Should still extract correctly when surrounded by spaces or text
     resultado = extrair_documentos("Doc: 12345678900 fim")
     assert resultado == ["12345678900"]
+
+
+def test_extrai_documento_pagador_e_recebedor_por_rotulo():
+    texto = (
+        "Pagador: Joao da Silva\nCPF: 123.456.789-00\n"
+        "Favorecido: Energisa\nCNPJ: 12.345.678/0001-95"
+    )
+    assert extrair_documento_pagador(texto) == "12345678900"
+    assert extrair_documento_recebedor(texto) == "12345678000195"
+
+
+def test_nao_confunde_cnpj_do_banco_no_cabecalho_com_documento_do_pagador():
+    texto = (
+        "Itau Unibanco S.A. CNPJ 60.701.190/0001-04\n"
+        "Pagador: Joao\nCPF: 123.456.789-00\n"
+        "Favorecido: Energisa\nCNPJ: 12.345.678/0001-95"
+    )
+    assert extrair_documento_pagador(texto) == "12345678900"
+    assert extrair_documento_recebedor(texto) == "12345678000195"
+
+
+def test_extrai_documento_pagador_retorna_none_sem_rotulo():
+    assert extrair_documento_pagador("Nenhum documento fiscal aqui.") is None

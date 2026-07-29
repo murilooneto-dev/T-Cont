@@ -1,7 +1,7 @@
 import re
 from datetime import date
 
-_PADRAO_DATA = re.compile(r"(\d{2})[/-](\d{2})[/-](\d{4})")
+_PADRAO_DATA = re.compile(r"(?<!\d)(\d{2})[/-](\d{2})[/-](\d{4})(?!\d)")
 _PALAVRA_PAGAMENTO = re.compile(r"\bpag(?:amento|o)\b", re.IGNORECASE)
 _JANELA_PAGAMENTO = 30
 
@@ -29,6 +29,10 @@ def extrair_data(texto: str) -> date | None:
             if parsed_data is not None:
                 return parsed_data
 
-    # Fall back to the first match if none qualify
-    dia, mes, ano = matches[0].groups()
-    return _parse_data(dia, mes, ano)
+    # Fall back to the first match that parses successfully
+    for match in matches:
+        dia, mes, ano = match.groups()
+        parsed_data = _parse_data(dia, mes, ano)
+        if parsed_data is not None:
+            return parsed_data
+    return None

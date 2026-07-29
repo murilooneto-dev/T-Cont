@@ -1,5 +1,7 @@
 import re
 
+from app.infrastructure.extracao.documento_fiscal import PADRAO_DOCUMENTO_FISCAL
+
 _ROTULOS_PAGADOR = ["PAGADOR", "DE"]
 _ROTULOS_RECEBEDOR = ["RECEBEDOR", "FAVORECIDO", "PARA", "BENEFICIARIO", "BENEFICIÁRIO"]
 
@@ -12,6 +14,11 @@ _PADRAO_PROXIMO_ROTULO = re.compile(
     r"\b(?:" + "|".join(re.escape(r) for r in _TODOS_ROTULOS) + r")\s*:", re.IGNORECASE
 )
 
+_MARCADORES_CAMPO = ["CPF", "CNPJ", "AGENCIA", "AGÊNCIA", "CONTA", "VALOR", "DATA", "BANCO"]
+_PADRAO_MARCADOR_CAMPO = re.compile(
+    r"\b(?:" + "|".join(re.escape(m) for m in _MARCADORES_CAMPO) + r")\b", re.IGNORECASE
+)
+
 
 def _normalizar_nome(bruto: str) -> str:
     nome = bruto.strip()
@@ -22,9 +29,13 @@ def _normalizar_nome(bruto: str) -> str:
 
 
 def _truncar_no_proximo_rotulo(bruto: str) -> str:
-    match = _PADRAO_PROXIMO_ROTULO.search(bruto)
-    if match:
-        return bruto[: match.start()]
+    pontos_de_corte = []
+    for padrao in (_PADRAO_PROXIMO_ROTULO, _PADRAO_MARCADOR_CAMPO, PADRAO_DOCUMENTO_FISCAL):
+        match = padrao.search(bruto)
+        if match:
+            pontos_de_corte.append(match.start())
+    if pontos_de_corte:
+        return bruto[: min(pontos_de_corte)]
     return bruto
 
 
