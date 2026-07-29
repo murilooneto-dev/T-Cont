@@ -377,3 +377,43 @@ def test_novo_lote_pode_ser_iniciado_apos_lote_anterior_falhar(ambiente, empresa
 
     assert status_final["status"] == "CONCLUIDO"
     assert status_final["documentos_processados"] == 1
+
+
+def test_processar_lote_extrai_dados_do_documento(client, empresa_id):
+    conteudo = _pdf_com_texto(
+        "Comprovante de Transferencia PIX\n"
+        "Pagador: Joao da Silva\n"
+        "CPF: 123.456.789-00\n"
+        "Favorecido: Energisa\n"
+        "CNPJ: 12.345.678/0001-95\n"
+        "Valor: R$ 250,00\n"
+        "Data do pagamento: 20/04/2026\n"
+    )
+    client.post(
+        f"/empresas/{empresa_id}/documentos",
+        files={"arquivos": ("comprovante.pdf", conteudo, "application/pdf")},
+    )
+
+    response = client.post(f"/empresas/{empresa_id}/documentos/processar")
+    lote_id = response.json()["id"]
+
+    status_final = None
+    for _ in range(20):
+        status_final = client.get(f"/lotes/{lote_id}").json()
+        if status_final["status"] != "EM_ANDAMENTO":
+            break
+        time.sleep(0.5)
+
+    assert status_final["status"] == "CONCLUIDO"
+
+    documentos = client.get(f"/empresas/{empresa_id}/documentos").json()
+    documento_id = documentos[0]["id"]
+    resultado = client.get(f"/documentos/{documento_id}/resultado").json()
+
+    assert resultado["extracao"]["tipo_documento"] == "PIX"
+    assert resultado["extracao"]["pagador_nome"] == "JOAO DA SILVA"
+    assert resultado["extracao"]["pagador_documento"] == "12345678900"
+    assert resultado["extracao"]["recebedor_nome"] == "ENERGISA"
+    assert resultado["extracao"]["recebedor_documento"] == "12345678000195"
+    assert resultado["extracao"]["valor"] == "250.00"
+    assert resultado["extracao"]["data_pagamento"] == "2026-04-20"

@@ -14,9 +14,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.core.config import settings
-from app.domain.entities import OcrResultado
+from app.domain.entities import Extracao, OcrResultado
 from app.domain.enums import StatusDocumento, StatusLote
 from app.infrastructure.ocr.pipeline import processar_documento
+from app.infrastructure.extracao.pipeline import extrair_dados_documento
 
 logger = logging.getLogger(__name__)
 
@@ -110,12 +111,16 @@ def processar_lote_em_background(
     from app.infrastructure.repositories.sqlalchemy_ocr_resultado_repository import (
         SqlAlchemyOcrResultadoRepository,
     )
+    from app.infrastructure.repositories.sqlalchemy_extracao_repository import (
+        SqlAlchemyExtracaoRepository,
+    )
     from app.infrastructure.storage.file_storage import LocalFileStorageService
 
     session = session_factory()
     try:
         documento_repo = SqlAlchemyDocumentoRepository(session)
         resultado_repo = SqlAlchemyOcrResultadoRepository(session)
+        extracao_repo = SqlAlchemyExtracaoRepository(session)
         lote_repo = SqlAlchemyLoteProcessamentoRepository(session)
         storage = LocalFileStorageService(Path(storage_root))
 
@@ -162,6 +167,20 @@ def processar_lote_em_background(
                             texto_extraido=resultado_pipeline.texto,
                             metodo=resultado_pipeline.metodo,
                             tempo_processamento_ms=resultado_pipeline.tempo_processamento_ms,
+                        )
+                    )
+                    dados = extrair_dados_documento(resultado_pipeline.texto)
+                    extracao_repo.criar(
+                        Extracao(
+                            id=None, documento_id=documento_id,
+                            pagador_nome=dados.pagador_nome,
+                            pagador_documento=dados.pagador_documento,
+                            recebedor_nome=dados.recebedor_nome,
+                            recebedor_documento=dados.recebedor_documento,
+                            valor=dados.valor,
+                            data_pagamento=dados.data_pagamento,
+                            tipo_documento=dados.tipo_documento,
+                            banco_nome=dados.banco_nome,
                         )
                     )
                 documento_repo.atualizar(documento)
