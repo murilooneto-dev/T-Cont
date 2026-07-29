@@ -17,3 +17,15 @@ def test_data_invalida_retorna_none():
 
 def test_texto_sem_data_retorna_none():
     assert extrair_data("Nenhuma data aqui.") is None
+
+
+def test_prioriza_data_de_pagamento_quando_ha_multiplas_datas():
+    assert extrair_data("Data de emissão: 01/03/2026\nData de pagamento: 15/03/2026") == date(2026, 3, 15)
+
+
+def test_usa_primeira_data_quando_nenhuma_e_pagamento():
+    assert extrair_data("Data de emissão: 01/03/2026\nData de vencimento: 10/03/2026") == date(2026, 3, 1)
+
+
+def test_reconhece_forma_pago():
+    assert extrair_data("Pago em 20/04/2026, referente à fatura de 01/04/2026") == date(2026, 4, 20)
