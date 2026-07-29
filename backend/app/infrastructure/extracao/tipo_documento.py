@@ -3,10 +3,10 @@ import re
 from app.domain.enums import TipoDocumento
 
 _PADROES = [
-    (TipoDocumento.PIX, re.compile(r"\bPIX\b", re.IGNORECASE)),
-    (TipoDocumento.TED, re.compile(r"\bTED\b", re.IGNORECASE)),
-    (TipoDocumento.DOC, re.compile(r"\bDOC\b", re.IGNORECASE)),
-    (TipoDocumento.BOLETO, re.compile(r"\bBOLETO\b", re.IGNORECASE)),
+    (TipoDocumento.PIX, re.compile(r"\bPIXS?\b", re.IGNORECASE)),
+    (TipoDocumento.TED, re.compile(r"\bTEDS?\b", re.IGNORECASE)),
+    (TipoDocumento.DOC, re.compile(r"\bDOCS?\b", re.IGNORECASE)),
+    (TipoDocumento.BOLETO, re.compile(r"\bBOLETOS?\b", re.IGNORECASE)),
 ]
 
 
