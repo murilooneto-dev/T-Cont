@@ -65,6 +65,7 @@ def test_upload_lista_e_obtem_resultado_de_documento(client, empresa_id):
     body = response.json()
     assert body["documento"]["status"] == "PENDENTE"
     assert body["resultado"] is None
+    assert body["extracao"] is None
 
 
 def test_upload_extensao_invalida_retorna_erro_no_item_mas_201(client, empresa_id):

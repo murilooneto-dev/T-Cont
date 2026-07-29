@@ -5,6 +5,7 @@ from app.api.deps import get_db, get_storage
 from app.api.schemas.documento_schemas import (
     DocumentoOut,
     DocumentoResultadoOut,
+    ExtracaoOut,
     OcrResultadoOut,
     UploadItemOut,
 )
@@ -24,6 +25,9 @@ from app.infrastructure.repositories.sqlalchemy_empresa_repository import (
 )
 from app.infrastructure.repositories.sqlalchemy_ocr_resultado_repository import (
     SqlAlchemyOcrResultadoRepository,
+)
+from app.infrastructure.repositories.sqlalchemy_extracao_repository import (
+    SqlAlchemyExtracaoRepository,
 )
 from app.infrastructure.storage.file_storage import (
     TAMANHO_MAXIMO_BYTES,
@@ -96,10 +100,11 @@ def listar_documentos(empresa_id: int, db: Session = Depends(get_db)):
 def obter_resultado(documento_id: int, db: Session = Depends(get_db)):
     documento_repo = SqlAlchemyDocumentoRepository(db)
     resultado_repo = SqlAlchemyOcrResultadoRepository(db)
+    extracao_repo = SqlAlchemyExtracaoRepository(db)
     try:
-        documento, resultado = ObterResultadoUseCase(documento_repo, resultado_repo).executar(
-            documento_id
-        )
+        documento, resultado, extracao = ObterResultadoUseCase(
+            documento_repo, resultado_repo, extracao_repo
+        ).executar(documento_id)
     except DocumentoNaoEncontrado as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     resultado_out = (
@@ -111,4 +116,5 @@ def obter_resultado(documento_id: int, db: Session = Depends(get_db)):
         if resultado
         else None
     )
-    return DocumentoResultadoOut(documento=documento, resultado=resultado_out)
+    extracao_out = ExtracaoOut.from_extracao(extracao) if extracao else None
+    return DocumentoResultadoOut(documento=documento, resultado=resultado_out, extracao=extracao_out)

@@ -7,11 +7,13 @@ from app.application.use_cases.documento_use_cases import (
     UploadarDocumentosUseCase,
 )
 from app.core.exceptions import DocumentoNaoEncontrado, EmpresaNaoEncontrada
-from app.domain.entities import Empresa
+from app.domain.entities import Empresa, Extracao
+from app.domain.enums import TipoDocumento
 from tests.fakes import (
     FakeArmazenamentoArquivos,
     FakeDocumentoRepository,
     FakeEmpresaRepository,
+    FakeExtracaoRepository,
     FakeOcrResultadoRepository,
 )
 
@@ -79,6 +81,54 @@ def test_listar_documentos_por_empresa():
 def test_obter_resultado_documento_inexistente_falha():
     documento_repo = FakeDocumentoRepository()
     resultado_repo = FakeOcrResultadoRepository()
+    extracao_repo = FakeExtracaoRepository()
 
     with pytest.raises(DocumentoNaoEncontrado):
-        ObterResultadoUseCase(documento_repo, resultado_repo).executar(999)
+        ObterResultadoUseCase(documento_repo, resultado_repo, extracao_repo).executar(999)
+
+
+def test_obter_resultado_retorna_extracao_quando_existe():
+    documento_repo = FakeDocumentoRepository()
+    resultado_repo = FakeOcrResultadoRepository()
+    extracao_repo = FakeExtracaoRepository()
+    empresa_repo = FakeEmpresaRepository()
+    empresa = _empresa(empresa_repo)
+    storage = FakeArmazenamentoArquivos()
+    resultados_upload = UploadarDocumentosUseCase(documento_repo, empresa_repo, storage).executar(
+        empresa.id, [ArquivoUploadDTO(nome_original="a.pdf", conteudo=b"x")]
+    )
+    documento_id = resultados_upload[0].documento.id
+    extracao_repo.criar(
+        Extracao(
+            id=None, documento_id=documento_id, pagador_nome="JOAO", pagador_documento=None,
+            recebedor_nome=None, recebedor_documento=None, valor=None,
+            data_pagamento=None, tipo_documento=TipoDocumento.OUTRO, banco_nome=None,
+        )
+    )
+
+    documento, resultado, extracao = ObterResultadoUseCase(
+        documento_repo, resultado_repo, extracao_repo
+    ).executar(documento_id)
+
+    assert resultado is None
+    assert extracao is not None
+    assert extracao.pagador_nome == "JOAO"
+
+
+def test_obter_resultado_extracao_none_quando_nao_existe():
+    documento_repo = FakeDocumentoRepository()
+    resultado_repo = FakeOcrResultadoRepository()
+    extracao_repo = FakeExtracaoRepository()
+    empresa_repo = FakeEmpresaRepository()
+    empresa = _empresa(empresa_repo)
+    storage = FakeArmazenamentoArquivos()
+    resultados_upload = UploadarDocumentosUseCase(documento_repo, empresa_repo, storage).executar(
+        empresa.id, [ArquivoUploadDTO(nome_original="a.pdf", conteudo=b"x")]
+    )
+    documento_id = resultados_upload[0].documento.id
+
+    _, _, extracao = ObterResultadoUseCase(documento_repo, resultado_repo, extracao_repo).executar(
+        documento_id
+    )
+
+    assert extracao is None
