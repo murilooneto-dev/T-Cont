@@ -1,5 +1,6 @@
 from app.application.ports import ArmazenamentoArquivos
 from app.application.repositories import (
+    ClassificacaoRepository,
     ContaRepository,
     DocumentoRepository,
     EmpresaRepository,
@@ -7,9 +8,11 @@ from app.application.repositories import (
     LoteProcessamentoRepository,
     OcrResultadoRepository,
     PlanoContasRepository,
+    RegraRepository,
 )
 from app.domain.entities import (
-    Conta, Documento, Empresa, Extracao, LoteProcessamento, OcrResultado, PlanoContas,
+    Classificacao, Conta, Documento, Empresa, Extracao, LoteProcessamento, OcrResultado,
+    PlanoContas, Regra,
 )
 from app.domain.enums import StatusDocumento
 from app.infrastructure.storage.file_storage import validar_extensao_e_tamanho
@@ -178,3 +181,48 @@ class FakeExtracaoRepository(ExtracaoRepository):
 
     def obter_por_documento_id(self, documento_id: int) -> Extracao | None:
         return next((e for e in self._items.values() if e.documento_id == documento_id), None)
+
+
+class FakeRegraRepository(RegraRepository):
+    def __init__(self):
+        self._items: dict[int, Regra] = {}
+        self._next_id = 1
+
+    def criar(self, regra: Regra) -> Regra:
+        regra.id = self._next_id
+        self._items[self._next_id] = regra
+        self._next_id += 1
+        return regra
+
+    def obter_por_id(self, regra_id: int) -> Regra | None:
+        return self._items.get(regra_id)
+
+    def listar_por_empresa(self, empresa_id: int) -> list[Regra]:
+        return [r for r in self._items.values() if r.empresa_id == empresa_id]
+
+    def atualizar(self, regra: Regra) -> Regra:
+        self._items[regra.id] = regra
+        return regra
+
+    def deletar(self, regra_id: int) -> None:
+        self._items.pop(regra_id, None)
+
+
+class FakeClassificacaoRepository(ClassificacaoRepository):
+    def __init__(self):
+        self._items: dict[int, Classificacao] = {}
+        self._next_id = 1
+
+    def criar(self, classificacao: Classificacao) -> Classificacao:
+        classificacao.id = self._next_id
+        self._items[self._next_id] = classificacao
+        self._next_id += 1
+        return classificacao
+
+    def obter_por_documento_id(self, documento_id: int) -> Classificacao | None:
+        return next(
+            (c for c in self._items.values() if c.documento_id == documento_id), None
+        )
+
+    def listar_por_empresa(self, empresa_id: int) -> list[Classificacao]:
+        return [c for c in self._items.values() if c.empresa_id == empresa_id]
