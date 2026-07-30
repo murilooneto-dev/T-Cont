@@ -45,3 +45,5 @@ class LadoRegra(str, Enum):
 class OrigemClassificacao(str, Enum):
     REGRA = "REGRA"
     FUZZY = "FUZZY"
+    IA = "IA"
+    MANUAL = "MANUAL"

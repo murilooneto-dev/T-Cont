@@ -187,8 +187,20 @@ class ClassificacaoModel(Base):
 
 class AprendizadoModel(Base):
     __tablename__ = "aprendizado"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    empresa_id: Mapped[int] = mapped_column(ForeignKey("empresas.id"), nullable=False)
+    empresa_id: Mapped[int] = mapped_column(
+        ForeignKey("empresas.id"), nullable=False, index=True
+    )
+    documento_id: Mapped[int] = mapped_column(ForeignKey("documentos.id"), nullable=False)
+    conta_anterior_id: Mapped[int | None] = mapped_column(
+        ForeignKey("contas.id"), nullable=True
+    )
+    origem_anterior: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    conta_corrigida_id: Mapped[int] = mapped_column(
+        ForeignKey("contas.id"), nullable=False
+    )
+    regra_id: Mapped[int | None] = mapped_column(ForeignKey("regras.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, nullable=False
     )
