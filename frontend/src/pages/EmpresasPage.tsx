@@ -7,9 +7,12 @@ import { EmpresaForm } from "../components/EmpresaForm";
 import { EmpresaList } from "../components/EmpresaList";
 import { PlanoContasImport } from "../components/PlanoContasImport";
 import { ProgressoLote } from "../components/ProgressoLote";
+import { RegraForm } from "../components/RegraForm";
+import { RegraList } from "../components/RegraList";
 import type { Documento, Lote } from "../types/documento";
 import type { Empresa } from "../types/empresa";
 import type { Conta, PlanoContas } from "../types/planoContas";
+import type { Regra } from "../types/regra";
 
 export function EmpresasPage() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -17,6 +20,7 @@ export function EmpresasPage() {
   const [planos, setPlanos] = useState<PlanoContas[]>([]);
   const [planoSelecionadoId, setPlanoSelecionadoId] = useState<number | null>(null);
   const [contas, setContas] = useState<Conta[]>([]);
+  const [regras, setRegras] = useState<Regra[]>([]);
   const [nomePlano, setNomePlano] = useState("");
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [lote, setLote] = useState<Lote | null>(null);
@@ -76,6 +80,14 @@ export function EmpresasPage() {
   useEffect(() => {
     carregarContas();
   }, [carregarContas]);
+
+  useEffect(() => {
+    if (empresaSelecionadaId === null) {
+      setRegras([]);
+      return;
+    }
+    api.regras.list(empresaSelecionadaId).then(setRegras);
+  }, [empresaSelecionadaId]);
 
   async function handleCriarPlano() {
     if (empresaSelecionadaId === null || !nomePlano) return;
@@ -186,6 +198,25 @@ export function EmpresasPage() {
           <div>
             <h2 className="mb-2 text-sm font-semibold text-slate-700">Contas</h2>
             <ContasTree contas={contas} />
+          </div>
+        </section>
+      )}
+
+      {empresaSelecionadaId !== null && (
+        <section className="grid grid-cols-2 gap-4 border-t border-slate-200 pt-4">
+          <RegraForm
+            empresaId={empresaSelecionadaId}
+            contas={contas}
+            onCreated={(regra) => setRegras((atual) => [...atual, regra])}
+          />
+          <div>
+            <h2 className="mb-2 text-sm font-semibold text-slate-700">Regras de Classificação</h2>
+            <RegraList
+              empresaId={empresaSelecionadaId}
+              regras={regras}
+              contas={contas}
+              onChanged={setRegras}
+            />
           </div>
         </section>
       )}
