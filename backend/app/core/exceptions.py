@@ -61,3 +61,36 @@ class LoteNaoPodeSerCancelado(DomainError):
         super().__init__(
             f"O lote {lote_id} não pode ser cancelado porque já está {status}."
         )
+
+
+class ContaNaoPertenceAEmpresa(DomainError):
+    def __init__(self, conta_id: int, empresa_id: int):
+        super().__init__(
+            f"A conta {conta_id} não pertence a um plano de contas da empresa {empresa_id}."
+        )
+
+
+class ContaNaoAnalitica(DomainError):
+    def __init__(self, motivo: str):
+        super().__init__(motivo)
+
+
+class RegraNaoEncontrada(DomainError):
+    def __init__(self, regra_id: int):
+        super().__init__(f"Regra {regra_id} não encontrada.")
+
+
+class RegraSemCondicoes(DomainError):
+    def __init__(self):
+        super().__init__(
+            "A regra precisa de pelo menos uma condição preenchida "
+            "(documento fiscal, tipo de documento, faixa de valor ou palavra-chave)."
+        )
+
+
+class RegraSemLadoAlvo(DomainError):
+    def __init__(self):
+        super().__init__(
+            "É necessário informar o lado alvo (pagador/recebedor) quando a regra usa "
+            "documento fiscal ou palavra-chave no nome."
+        )

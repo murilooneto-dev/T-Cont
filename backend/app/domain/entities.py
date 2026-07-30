@@ -2,7 +2,10 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 
-from app.domain.enums import MetodoOcr, NaturezaConta, StatusDocumento, StatusLote, TipoDocumento
+from app.domain.enums import (
+    LadoRegra, MetodoOcr, NaturezaConta, OrigemClassificacao, StatusDocumento, StatusLote,
+    TipoDocumento,
+)
 
 
 @dataclass
@@ -91,4 +94,31 @@ class Extracao:
     data_pagamento: date | None
     tipo_documento: TipoDocumento
     banco_nome: str | None
+    created_at: datetime | None = None
+
+
+@dataclass
+class Regra:
+    id: int | None
+    empresa_id: int
+    conta_id: int
+    lado_alvo: LadoRegra | None
+    documento_fiscal: str | None
+    tipo_documento: TipoDocumento | None
+    valor_min: Decimal | None
+    valor_max: Decimal | None
+    palavra_chave_nome: str | None
+    ativo: bool = True
+    created_at: datetime | None = None
+
+
+@dataclass
+class Classificacao:
+    id: int | None
+    empresa_id: int
+    documento_id: int
+    conta_id: int
+    origem: OrigemClassificacao
+    regra_id: int | None = None
+    score_similaridade: float | None = None
     created_at: datetime | None = None
