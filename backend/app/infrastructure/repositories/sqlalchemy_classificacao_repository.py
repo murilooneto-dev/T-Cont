@@ -49,3 +49,12 @@ class SqlAlchemyClassificacaoRepository(ClassificacaoRepository):
             self._session.query(ClassificacaoModel).filter_by(empresa_id=empresa_id).all()
         )
         return [_to_entity(m) for m in models]
+
+    def atualizar(self, classificacao: Classificacao) -> Classificacao:
+        model = self._session.get(ClassificacaoModel, classificacao.id)
+        model.conta_id = classificacao.conta_id
+        model.origem = classificacao.origem.value
+        model.regra_id = classificacao.regra_id
+        model.score_similaridade = classificacao.score_similaridade
+        self._session.flush()
+        return _to_entity(model)

@@ -84,3 +84,24 @@ def test_criar_classificacao_por_fuzzy_com_score(db_session):
 def test_obter_por_documento_id_inexistente_retorna_none(db_session):
     repo = SqlAlchemyClassificacaoRepository(db_session)
     assert repo.obter_por_documento_id(999) is None
+
+
+def test_atualizar_classificacao(db_session):
+    empresa, conta, documento = _empresa_conta_documento(db_session)
+    repo = SqlAlchemyClassificacaoRepository(db_session)
+    criada = repo.criar(
+        Classificacao(
+            id=None, empresa_id=empresa.id, documento_id=documento.id, conta_id=conta.id,
+            origem=OrigemClassificacao.FUZZY, regra_id=None, score_similaridade=0.7,
+        )
+    )
+    db_session.commit()
+
+    criada.origem = OrigemClassificacao.MANUAL
+    criada.score_similaridade = None
+    repo.atualizar(criada)
+    db_session.commit()
+
+    atualizada = repo.obter_por_documento_id(documento.id)
+    assert atualizada.origem == OrigemClassificacao.MANUAL
+    assert atualizada.score_similaridade is None
