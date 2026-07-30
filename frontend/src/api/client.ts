@@ -1,6 +1,7 @@
 import type { Empresa, EmpresaCreateInput } from "../types/empresa";
 import type { Conta, ImportPreview, PlanoContas } from "../types/planoContas";
 import type { Documento, DocumentoResultado, Lote, UploadItemResultado } from "../types/documento";
+import type { Regra, RegraCreateInput, RegraUpdateInput } from "../types/regra";
 
 const BASE_URL = "http://localhost:8000";
 
@@ -71,5 +72,20 @@ export const api = {
     status: (loteId: number) => request<Lote>(`/lotes/${loteId}`),
     cancelar: (loteId: number) =>
       request<Lote>(`/lotes/${loteId}/cancelar`, { method: "POST" }),
+  },
+  regras: {
+    list: (empresaId: number) => request<Regra[]>(`/empresas/${empresaId}/regras`),
+    create: (empresaId: number, input: RegraCreateInput) =>
+      request<Regra>(`/empresas/${empresaId}/regras`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    update: (empresaId: number, regraId: number, input: RegraUpdateInput) =>
+      request<Regra>(`/empresas/${empresaId}/regras/${regraId}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    remove: (empresaId: number, regraId: number) =>
+      request<void>(`/empresas/${empresaId}/regras/${regraId}`, { method: "DELETE" }),
   },
 };
