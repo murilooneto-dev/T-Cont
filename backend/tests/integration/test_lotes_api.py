@@ -417,3 +417,46 @@ def test_processar_lote_extrai_dados_do_documento(client, empresa_id):
     assert resultado["extracao"]["recebedor_documento"] == "12345678000195"
     assert resultado["extracao"]["valor"] == "250.00"
     assert resultado["extracao"]["data_pagamento"] == "2026-04-20"
+
+
+def test_processar_lote_classifica_documento_por_regra(client, empresa_id):
+    plano_id = client.post(
+        f"/empresas/{empresa_id}/planos-contas", json={"nome": "Plano"}
+    ).json()["id"]
+    conta_id = client.post(
+        f"/planos-contas/{plano_id}/contas",
+        json={
+            "codigo": "1", "descricao": "Energia", "natureza": "DESPESA",
+            "conta_analitica": True, "conta_pai_id": None,
+        },
+    ).json()["id"]
+    client.post(
+        f"/empresas/{empresa_id}/regras",
+        json={
+            "conta_id": conta_id, "lado_alvo": "RECEBEDOR",
+            "documento_fiscal": "12345678000195", "tipo_documento": None,
+            "valor_min": None, "valor_max": None, "palavra_chave_nome": None,
+        },
+    )
+
+    _upload(
+        client, empresa_id, "comprovante.pdf",
+        "Favorecido: Energisa\nCNPJ: 12.345.678/0001-95\nValor: R$ 100,00",
+    )
+    response = client.post(f"/empresas/{empresa_id}/documentos/processar")
+    lote_id = response.json()["id"]
+
+    status_final = None
+    for _ in range(20):
+        status_final = client.get(f"/lotes/{lote_id}").json()
+        if status_final["status"] != "EM_ANDAMENTO":
+            break
+        time.sleep(0.5)
+    assert status_final["status"] == "CONCLUIDO"
+
+    documentos = client.get(f"/empresas/{empresa_id}/documentos").json()
+    documento_id = documentos[0]["id"]
+    resultado = client.get(f"/documentos/{documento_id}/resultado").json()
+
+    assert resultado["classificacao"]["conta_id"] == conta_id
+    assert resultado["classificacao"]["origem"] == "REGRA"

@@ -14,10 +14,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.core.config import settings
-from app.domain.entities import Extracao, OcrResultado
+from app.domain.entities import Classificacao, Extracao, OcrResultado
 from app.domain.enums import StatusDocumento, StatusLote
 from app.infrastructure.ocr.pipeline import processar_documento
 from app.infrastructure.extracao.pipeline import extrair_dados_documento
+from app.infrastructure.classificacao.pipeline import classificar_documento
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +115,12 @@ def processar_lote_em_background(
     from app.infrastructure.repositories.sqlalchemy_extracao_repository import (
         SqlAlchemyExtracaoRepository,
     )
+    from app.infrastructure.repositories.sqlalchemy_regra_repository import (
+        SqlAlchemyRegraRepository,
+    )
+    from app.infrastructure.repositories.sqlalchemy_classificacao_repository import (
+        SqlAlchemyClassificacaoRepository,
+    )
     from app.infrastructure.storage.file_storage import LocalFileStorageService
 
     session = session_factory()
@@ -121,6 +128,8 @@ def processar_lote_em_background(
         documento_repo = SqlAlchemyDocumentoRepository(session)
         resultado_repo = SqlAlchemyOcrResultadoRepository(session)
         extracao_repo = SqlAlchemyExtracaoRepository(session)
+        regra_repo = SqlAlchemyRegraRepository(session)
+        classificacao_repo = SqlAlchemyClassificacaoRepository(session)
         lote_repo = SqlAlchemyLoteProcessamentoRepository(session)
         storage = LocalFileStorageService(Path(storage_root))
 
@@ -170,7 +179,7 @@ def processar_lote_em_background(
                         )
                     )
                     dados = extrair_dados_documento(resultado_pipeline.texto)
-                    extracao_repo.criar(
+                    extracao_criada = extracao_repo.criar(
                         Extracao(
                             id=None, documento_id=documento_id,
                             pagador_nome=dados.pagador_nome,
@@ -183,6 +192,45 @@ def processar_lote_em_background(
                             banco_nome=dados.banco_nome,
                         )
                     )
+
+                    regras = regra_repo.listar_por_empresa(documento.empresa_id)
+                    historico_fuzzy = []
+                    for classificacao_existente in classificacao_repo.listar_por_empresa(
+                        documento.empresa_id
+                    ):
+                        extracao_historica = extracao_repo.obter_por_documento_id(
+                            classificacao_existente.documento_id
+                        )
+                        if extracao_historica is None:
+                            continue
+                        nome_historico = (
+                            extracao_historica.recebedor_nome or extracao_historica.pagador_nome
+                        )
+                        if nome_historico is None:
+                            continue
+                        historico_fuzzy.append(
+                            (
+                                nome_historico,
+                                classificacao_existente.conta_id,
+                                classificacao_existente.created_at,
+                            )
+                        )
+
+                    resultado_classificacao = classificar_documento(
+                        extracao_criada, regras, historico_fuzzy
+                    )
+                    if resultado_classificacao is not None:
+                        classificacao_repo.criar(
+                            Classificacao(
+                                id=None,
+                                empresa_id=documento.empresa_id,
+                                documento_id=documento_id,
+                                conta_id=resultado_classificacao.conta_id,
+                                origem=resultado_classificacao.origem,
+                                regra_id=resultado_classificacao.regra_id,
+                                score_similaridade=resultado_classificacao.score_similaridade,
+                            )
+                        )
                 documento_repo.atualizar(documento)
 
                 lote_atual = lote_repo.obter_por_id(lote_id)
