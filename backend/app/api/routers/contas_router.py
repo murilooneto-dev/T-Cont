@@ -11,6 +11,7 @@ from app.application.use_cases.conta_use_cases import (
     ListarContasUseCase,
 )
 from app.core.exceptions import (
+    ContaEmUso,
     ContaJaCadastrada,
     ContaNaoEncontrada,
     PlanoContasNaoEncontrado,
@@ -69,4 +70,7 @@ def atualizar_conta(conta_id: int, payload: ContaUpdateIn, db: Session = Depends
 @router.delete("/contas/{conta_id}", status_code=status.HTTP_204_NO_CONTENT)
 def deletar_conta(conta_id: int, db: Session = Depends(get_db)):
     repo = SqlAlchemyContaRepository(db)
-    DeletarContaUseCase(repo).executar(conta_id)
+    try:
+        DeletarContaUseCase(repo).executar(conta_id)
+    except ContaEmUso as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

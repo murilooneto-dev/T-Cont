@@ -94,3 +94,19 @@ class RegraSemLadoAlvo(DomainError):
             "É necessário informar o lado alvo (pagador/recebedor) quando a regra usa "
             "documento fiscal ou palavra-chave no nome."
         )
+
+
+class ContaEmUso(DomainError):
+    def __init__(self, conta_id: int):
+        super().__init__(
+            f"A conta {conta_id} não pode ser apagada porque está em uso por regras "
+            "ou classificações existentes."
+        )
+
+
+class RegraDocumentoFiscalInvalido(DomainError):
+    def __init__(self, valor: str):
+        super().__init__(
+            f"CNPJ/CPF inválido: '{valor}' deve conter 11 (CPF) ou 14 (CNPJ) dígitos "
+            "após remover pontuação."
+        )

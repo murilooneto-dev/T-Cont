@@ -11,6 +11,7 @@ from app.core.exceptions import (
     ContaNaoAnalitica,
     ContaNaoEncontrada,
     ContaNaoPertenceAEmpresa,
+    RegraDocumentoFiscalInvalido,
     RegraNaoEncontrada,
     RegraSemCondicoes,
     RegraSemLadoAlvo,
@@ -107,6 +108,43 @@ def test_criar_regra_com_palavra_chave_sem_lado_alvo_falha():
     )
 
     with pytest.raises(RegraSemLadoAlvo):
+        CriarRegraUseCase(regra_repo, conta_repo, plano_repo).executar(1, dto)
+
+
+def test_criar_regra_normaliza_cnpj_pontuado():
+    regra_repo = FakeRegraRepository()
+    conta_repo = FakeContaRepository()
+    plano_repo = FakePlanoContasRepository()
+    _, conta = _plano_e_conta(plano_repo, conta_repo, empresa_id=1)
+    dto = _dto(conta.id, documento_fiscal="12.345.678/0001-95")
+
+    regra = CriarRegraUseCase(regra_repo, conta_repo, plano_repo).executar(1, dto)
+
+    assert regra.documento_fiscal == "12345678000195"
+
+
+def test_criar_regra_com_documento_fiscal_invalido_falha():
+    regra_repo = FakeRegraRepository()
+    conta_repo = FakeContaRepository()
+    plano_repo = FakePlanoContasRepository()
+    _, conta = _plano_e_conta(plano_repo, conta_repo, empresa_id=1)
+    dto = _dto(conta.id, documento_fiscal="123")
+
+    with pytest.raises(RegraDocumentoFiscalInvalido):
+        CriarRegraUseCase(regra_repo, conta_repo, plano_repo).executar(1, dto)
+
+
+def test_criar_regra_com_palavra_chave_so_espaco_falha_como_sem_condicoes():
+    regra_repo = FakeRegraRepository()
+    conta_repo = FakeContaRepository()
+    plano_repo = FakePlanoContasRepository()
+    _, conta = _plano_e_conta(plano_repo, conta_repo, empresa_id=1)
+    dto = _dto(
+        conta.id, lado_alvo="RECEBEDOR", documento_fiscal=None, tipo_documento=None,
+        valor_min=None, valor_max=None, palavra_chave_nome="   ",
+    )
+
+    with pytest.raises(RegraSemCondicoes):
         CriarRegraUseCase(regra_repo, conta_repo, plano_repo).executar(1, dto)
 
 

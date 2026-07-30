@@ -14,6 +14,7 @@ from app.core.exceptions import (
     ContaNaoAnalitica,
     ContaNaoEncontrada,
     ContaNaoPertenceAEmpresa,
+    RegraDocumentoFiscalInvalido,
     RegraNaoEncontrada,
     RegraSemCondicoes,
     RegraSemLadoAlvo,
@@ -56,7 +57,10 @@ def criar_regra(empresa_id: int, payload: RegraCreateIn, db: Session = Depends(g
         )
     except ContaNaoEncontrada as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except (ContaNaoPertenceAEmpresa, ContaNaoAnalitica, RegraSemCondicoes, RegraSemLadoAlvo) as exc:
+    except (
+        ContaNaoPertenceAEmpresa, ContaNaoAnalitica, RegraSemCondicoes, RegraSemLadoAlvo,
+        RegraDocumentoFiscalInvalido,
+    ) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return RegraOut.from_regra(regra)
 
@@ -91,7 +95,10 @@ def atualizar_regra(
         )
     except (RegraNaoEncontrada, ContaNaoEncontrada) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except (ContaNaoPertenceAEmpresa, ContaNaoAnalitica, RegraSemCondicoes, RegraSemLadoAlvo) as exc:
+    except (
+        ContaNaoPertenceAEmpresa, ContaNaoAnalitica, RegraSemCondicoes, RegraSemLadoAlvo,
+        RegraDocumentoFiscalInvalido,
+    ) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return RegraOut.from_regra(regra)
 

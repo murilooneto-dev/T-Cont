@@ -9,7 +9,7 @@ repositórios abstratos.
 
 import logging
 from collections.abc import Callable
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -134,7 +134,8 @@ def processar_lote_em_background(
         storage = LocalFileStorageService(Path(storage_root))
 
         with ProcessPoolExecutor(max_workers=settings.ocr_max_workers) as pool:
-            futuros = {}
+            futuros_por_documento = {}
+            empresa_id_lote: int | None = None
             for documento_id in documento_ids:
                 # O cancelamento chega por outra sessão (a da request HTTP). Sem
                 # expirar a identity map, `session.get` devolveria a cópia em
@@ -150,12 +151,47 @@ def processar_lote_em_background(
                         documento_id, lote_id,
                     )
                     continue
+                if empresa_id_lote is None:
+                    empresa_id_lote = documento.empresa_id
                 conteudo = storage.ler(documento.caminho_arquivo)
                 futuro = pool.submit(processar_documento, conteudo, documento.extensao)
-                futuros[futuro] = documento_id
+                futuros_por_documento[documento_id] = futuro
 
-            for futuro in as_completed(futuros):
-                documento_id = futuros[futuro]
+            # Motor de regras e histórico fuzzy são carregados uma vez antes do
+            # laço (não por documento) — regras não mudam durante o lote, e o
+            # histórico é acrescido em memória conforme cada novo documento é
+            # classificado, evitando N+1 consultas repetidas por documento.
+            regras = regra_repo.listar_por_empresa(empresa_id_lote) if empresa_id_lote is not None else []
+            historico_fuzzy: list[tuple[str, int, datetime]] = []
+            if empresa_id_lote is not None:
+                for classificacao_existente in classificacao_repo.listar_por_empresa(empresa_id_lote):
+                    extracao_historica = extracao_repo.obter_por_documento_id(
+                        classificacao_existente.documento_id
+                    )
+                    if extracao_historica is None:
+                        continue
+                    nome_historico = (
+                        extracao_historica.recebedor_nome or extracao_historica.pagador_nome
+                    )
+                    if nome_historico is None:
+                        continue
+                    historico_fuzzy.append(
+                        (
+                            nome_historico,
+                            classificacao_existente.conta_id,
+                            classificacao_existente.created_at,
+                        )
+                    )
+
+            # Itera na ordem de SUBMISSÃO (não na ordem de conclusão do OCR via
+            # as_completed) para que a classificação de um lote seja
+            # determinística e reprodutível — um documento nunca deveria deixar
+            # de enxergar o histórico de um documento anterior no mesmo lote só
+            # porque o OCR dele terminou depois.
+            for documento_id in documento_ids:
+                futuro = futuros_por_documento.get(documento_id)
+                if futuro is None:
+                    continue
                 documento = documento_repo.obter_por_id(documento_id)
                 if documento is None:
                     logger.warning(
@@ -193,34 +229,11 @@ def processar_lote_em_background(
                         )
                     )
 
-                    regras = regra_repo.listar_por_empresa(documento.empresa_id)
-                    historico_fuzzy = []
-                    for classificacao_existente in classificacao_repo.listar_por_empresa(
-                        documento.empresa_id
-                    ):
-                        extracao_historica = extracao_repo.obter_por_documento_id(
-                            classificacao_existente.documento_id
-                        )
-                        if extracao_historica is None:
-                            continue
-                        nome_historico = (
-                            extracao_historica.recebedor_nome or extracao_historica.pagador_nome
-                        )
-                        if nome_historico is None:
-                            continue
-                        historico_fuzzy.append(
-                            (
-                                nome_historico,
-                                classificacao_existente.conta_id,
-                                classificacao_existente.created_at,
-                            )
-                        )
-
                     resultado_classificacao = classificar_documento(
                         extracao_criada, regras, historico_fuzzy
                     )
                     if resultado_classificacao is not None:
-                        classificacao_repo.criar(
+                        nova_classificacao = classificacao_repo.criar(
                             Classificacao(
                                 id=None,
                                 empresa_id=documento.empresa_id,
@@ -231,6 +244,17 @@ def processar_lote_em_background(
                                 score_similaridade=resultado_classificacao.score_similaridade,
                             )
                         )
+                        nome_para_historico = (
+                            extracao_criada.recebedor_nome or extracao_criada.pagador_nome
+                        )
+                        if nome_para_historico is not None:
+                            historico_fuzzy.append(
+                                (
+                                    nome_para_historico,
+                                    resultado_classificacao.conta_id,
+                                    nova_classificacao.created_at,
+                                )
+                            )
                 documento_repo.atualizar(documento)
 
                 lote_atual = lote_repo.obter_por_id(lote_id)

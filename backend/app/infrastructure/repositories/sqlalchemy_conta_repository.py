@@ -1,6 +1,8 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.application.repositories import ContaRepository
+from app.core.exceptions import ContaEmUso
 from app.domain.entities import Conta
 from app.domain.enums import NaturezaConta
 from app.infrastructure.db.models import ContaModel
@@ -60,4 +62,8 @@ class SqlAlchemyContaRepository(ContaRepository):
         model = self._session.get(ContaModel, conta_id)
         if model is not None:
             self._session.delete(model)
-            self._session.flush()
+            try:
+                self._session.flush()
+            except IntegrityError as exc:
+                self._session.rollback()
+                raise ContaEmUso(conta_id) from exc

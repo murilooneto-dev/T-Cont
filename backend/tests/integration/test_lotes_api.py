@@ -460,3 +460,59 @@ def test_processar_lote_classifica_documento_por_regra(client, empresa_id):
 
     assert resultado["classificacao"]["conta_id"] == conta_id
     assert resultado["classificacao"]["origem"] == "REGRA"
+
+
+def test_processar_lote_classifica_por_fuzzy_usando_documento_anterior_do_mesmo_lote(client, empresa_id):
+    plano_id = client.post(
+        f"/empresas/{empresa_id}/planos-contas", json={"nome": "Plano"}
+    ).json()["id"]
+    conta_id = client.post(
+        f"/planos-contas/{plano_id}/contas",
+        json={
+            "codigo": "1", "descricao": "Energia", "natureza": "DESPESA",
+            "conta_analitica": True, "conta_pai_id": None,
+        },
+    ).json()["id"]
+    client.post(
+        f"/empresas/{empresa_id}/regras",
+        json={
+            "conta_id": conta_id, "lado_alvo": "RECEBEDOR",
+            "documento_fiscal": "12345678000195", "tipo_documento": None,
+            "valor_min": None, "valor_max": None, "palavra_chave_nome": None,
+        },
+    )
+
+    _upload(
+        client, empresa_id, "primeiro.pdf",
+        "Favorecido: Energisa Ceara\nCNPJ: 12.345.678/0001-95\nValor: R$ 100,00",
+    )
+    _upload(
+        client, empresa_id, "segundo.pdf",
+        "Favorecido: Energisa Cear\nCNPJ: 98.765.432/0001-10\nValor: R$ 50,00",
+    )
+
+    response = client.post(f"/empresas/{empresa_id}/documentos/processar")
+    lote_id = response.json()["id"]
+
+    status_final = None
+    for _ in range(20):
+        status_final = client.get(f"/lotes/{lote_id}").json()
+        if status_final["status"] != "EM_ANDAMENTO":
+            break
+        time.sleep(0.5)
+    assert status_final["status"] == "CONCLUIDO"
+
+    documentos = client.get(f"/empresas/{empresa_id}/documentos").json()
+    documento_ids_por_nome = {d["nome_exibicao"]: d["id"] for d in documentos}
+
+    resultado_primeiro = client.get(
+        f"/documentos/{documento_ids_por_nome['primeiro.pdf']}/resultado"
+    ).json()
+    assert resultado_primeiro["classificacao"]["origem"] == "REGRA"
+
+    resultado_segundo = client.get(
+        f"/documentos/{documento_ids_por_nome['segundo.pdf']}/resultado"
+    ).json()
+    assert resultado_segundo["classificacao"] is not None
+    assert resultado_segundo["classificacao"]["conta_id"] == conta_id
+    assert resultado_segundo["classificacao"]["origem"] == "FUZZY"

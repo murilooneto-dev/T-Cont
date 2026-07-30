@@ -99,6 +99,20 @@ def test_criar_regra_sem_condicoes_retorna_400(client, conta_id):
     assert resposta.status_code == 400
 
 
+def test_deletar_conta_referenciada_por_regra_retorna_409(client, conta_id):
+    empresa_id, conta_id_ = conta_id
+    client.post(
+        f"/empresas/{empresa_id}/regras",
+        json={
+            "conta_id": conta_id_, "lado_alvo": "RECEBEDOR",
+            "documento_fiscal": "12345678000195", "tipo_documento": None,
+            "valor_min": None, "valor_max": None, "palavra_chave_nome": None,
+        },
+    )
+    resposta = client.delete(f"/contas/{conta_id_}")
+    assert resposta.status_code == 409
+
+
 def test_criar_regra_com_conta_inexistente_retorna_404(client):
     empresa_id = client.post(
         "/empresas", json={"razao_social": "Tesserato", "nome_fantasia": None, "cnpj": "12345678000199"}

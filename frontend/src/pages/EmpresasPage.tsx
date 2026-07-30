@@ -204,20 +204,28 @@ export function EmpresasPage() {
 
       {empresaSelecionadaId !== null && (
         <section className="grid grid-cols-2 gap-4 border-t border-slate-200 pt-4">
-          <RegraForm
-            empresaId={empresaSelecionadaId}
-            contas={contas}
-            onCreated={(regra) => setRegras((atual) => [...atual, regra])}
-          />
-          <div>
-            <h2 className="mb-2 text-sm font-semibold text-slate-700">Regras de Classificação</h2>
-            <RegraList
-              empresaId={empresaSelecionadaId}
-              regras={regras}
-              contas={contas}
-              onChanged={setRegras}
-            />
-          </div>
+          {planoSelecionadoId !== null ? (
+            <>
+              <RegraForm
+                empresaId={empresaSelecionadaId}
+                contas={contas}
+                onCreated={(regra) => setRegras((atual) => [...atual, regra])}
+              />
+              <div>
+                <h2 className="mb-2 text-sm font-semibold text-slate-700">Regras de Classificação</h2>
+                <RegraList
+                  empresaId={empresaSelecionadaId}
+                  regras={regras}
+                  contas={contas}
+                  onChanged={setRegras}
+                />
+              </div>
+            </>
+          ) : (
+            <p className="col-span-2 text-sm text-slate-500">
+              Selecione um plano de contas acima para cadastrar ou visualizar regras de classificação.
+            </p>
+          )}
         </section>
       )}
     </div>
