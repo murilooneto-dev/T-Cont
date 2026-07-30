@@ -129,7 +129,8 @@ def obter_resultado(documento_id: int, db: Session = Depends(get_db)):
     classificacao_out = None
     if classificacao:
         conta = conta_repo.obter_por_id(classificacao.conta_id)
-        classificacao_out = ClassificacaoOut.from_classificacao(classificacao, conta)
+        if conta is not None:
+            classificacao_out = ClassificacaoOut.from_classificacao(classificacao, conta)
     return DocumentoResultadoOut(
         documento=documento, resultado=resultado_out, extracao=extracao_out,
         classificacao=classificacao_out,
