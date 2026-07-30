@@ -39,10 +39,22 @@ export interface Extracao {
   banco_nome: string;
 }
 
+export type OrigemClassificacao = "REGRA" | "FUZZY";
+
+export interface Classificacao {
+  conta_id: number;
+  conta_codigo: string;
+  conta_descricao: string;
+  origem: OrigemClassificacao;
+  regra_id: number | null;
+  score_similaridade: number | null;
+}
+
 export interface DocumentoResultado {
   documento: Documento;
   resultado: OcrResultadoDetalhe | null;
   extracao: Extracao | null;
+  classificacao: Classificacao | null;
 }
 
 export interface Lote {

@@ -72,6 +72,21 @@ export function DocumentoList({ documentos }: { documentos: Documento[] }) {
               <span>{resultadoAberto.extracao.banco_nome}</span>
             </div>
           )}
+          <div className="mb-3 rounded border border-slate-200 bg-white p-2">
+            <span className="font-semibold">Classificação: </span>
+            {resultadoAberto.classificacao ? (
+              <span>
+                {resultadoAberto.classificacao.conta_codigo} —{" "}
+                {resultadoAberto.classificacao.conta_descricao} (
+                {resultadoAberto.classificacao.origem === "REGRA" ? "por regra" : "sugestão por similaridade"}
+                {resultadoAberto.classificacao.score_similaridade !== null &&
+                  ` — ${Math.round(resultadoAberto.classificacao.score_similaridade * 100)}%`}
+                )
+              </span>
+            ) : (
+              <span>SEM CLASSIFICAÇÃO</span>
+            )}
+          </div>
           <p className="mb-1 font-semibold">
             Método: {resultadoAberto.resultado?.metodo} (
             {resultadoAberto.resultado?.tempo_processamento_ms}ms)
