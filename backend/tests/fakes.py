@@ -1,5 +1,6 @@
 from app.application.ports import ArmazenamentoArquivos
 from app.application.repositories import (
+    AprendizadoRepository,
     ClassificacaoRepository,
     ContaRepository,
     DocumentoRepository,
@@ -11,8 +12,8 @@ from app.application.repositories import (
     RegraRepository,
 )
 from app.domain.entities import (
-    Classificacao, Conta, Documento, Empresa, Extracao, LoteProcessamento, OcrResultado,
-    PlanoContas, Regra,
+    Aprendizado, Classificacao, Conta, Documento, Empresa, Extracao, LoteProcessamento,
+    OcrResultado, PlanoContas, Regra,
 )
 from app.domain.enums import StatusDocumento
 from app.infrastructure.storage.file_storage import validar_extensao_e_tamanho
@@ -226,3 +227,22 @@ class FakeClassificacaoRepository(ClassificacaoRepository):
 
     def listar_por_empresa(self, empresa_id: int) -> list[Classificacao]:
         return [c for c in self._items.values() if c.empresa_id == empresa_id]
+
+    def atualizar(self, classificacao: Classificacao) -> Classificacao:
+        self._items[classificacao.id] = classificacao
+        return classificacao
+
+
+class FakeAprendizadoRepository(AprendizadoRepository):
+    def __init__(self):
+        self._items: dict[int, Aprendizado] = {}
+        self._next_id = 1
+
+    def criar(self, aprendizado: Aprendizado) -> Aprendizado:
+        aprendizado.id = self._next_id
+        self._items[self._next_id] = aprendizado
+        self._next_id += 1
+        return aprendizado
+
+    def listar_por_empresa(self, empresa_id: int) -> list[Aprendizado]:
+        return [a for a in self._items.values() if a.empresa_id == empresa_id]
