@@ -7,10 +7,11 @@ from app.application.use_cases.documento_use_cases import (
     UploadarDocumentosUseCase,
 )
 from app.core.exceptions import DocumentoNaoEncontrado, EmpresaNaoEncontrada
-from app.domain.entities import Empresa, Extracao
-from app.domain.enums import TipoDocumento
+from app.domain.entities import Classificacao, Empresa, Extracao
+from app.domain.enums import OrigemClassificacao, TipoDocumento
 from tests.fakes import (
     FakeArmazenamentoArquivos,
+    FakeClassificacaoRepository,
     FakeDocumentoRepository,
     FakeEmpresaRepository,
     FakeExtracaoRepository,
@@ -82,15 +83,19 @@ def test_obter_resultado_documento_inexistente_falha():
     documento_repo = FakeDocumentoRepository()
     resultado_repo = FakeOcrResultadoRepository()
     extracao_repo = FakeExtracaoRepository()
+    classificacao_repo = FakeClassificacaoRepository()
 
     with pytest.raises(DocumentoNaoEncontrado):
-        ObterResultadoUseCase(documento_repo, resultado_repo, extracao_repo).executar(999)
+        ObterResultadoUseCase(
+            documento_repo, resultado_repo, extracao_repo, classificacao_repo
+        ).executar(999)
 
 
 def test_obter_resultado_retorna_extracao_quando_existe():
     documento_repo = FakeDocumentoRepository()
     resultado_repo = FakeOcrResultadoRepository()
     extracao_repo = FakeExtracaoRepository()
+    classificacao_repo = FakeClassificacaoRepository()
     empresa_repo = FakeEmpresaRepository()
     empresa = _empresa(empresa_repo)
     storage = FakeArmazenamentoArquivos()
@@ -106,8 +111,8 @@ def test_obter_resultado_retorna_extracao_quando_existe():
         )
     )
 
-    documento, resultado, extracao = ObterResultadoUseCase(
-        documento_repo, resultado_repo, extracao_repo
+    documento, resultado, extracao, _ = ObterResultadoUseCase(
+        documento_repo, resultado_repo, extracao_repo, classificacao_repo
     ).executar(documento_id)
 
     assert resultado is None
@@ -119,6 +124,7 @@ def test_obter_resultado_extracao_none_quando_nao_existe():
     documento_repo = FakeDocumentoRepository()
     resultado_repo = FakeOcrResultadoRepository()
     extracao_repo = FakeExtracaoRepository()
+    classificacao_repo = FakeClassificacaoRepository()
     empresa_repo = FakeEmpresaRepository()
     empresa = _empresa(empresa_repo)
     storage = FakeArmazenamentoArquivos()
@@ -127,8 +133,55 @@ def test_obter_resultado_extracao_none_quando_nao_existe():
     )
     documento_id = resultados_upload[0].documento.id
 
-    _, _, extracao = ObterResultadoUseCase(documento_repo, resultado_repo, extracao_repo).executar(
-        documento_id
-    )
+    _, _, extracao, _ = ObterResultadoUseCase(
+        documento_repo, resultado_repo, extracao_repo, classificacao_repo
+    ).executar(documento_id)
 
     assert extracao is None
+
+
+def test_obter_resultado_retorna_classificacao_quando_existe():
+    documento_repo = FakeDocumentoRepository()
+    resultado_repo = FakeOcrResultadoRepository()
+    extracao_repo = FakeExtracaoRepository()
+    classificacao_repo = FakeClassificacaoRepository()
+    empresa_repo = FakeEmpresaRepository()
+    empresa = _empresa(empresa_repo)
+    storage = FakeArmazenamentoArquivos()
+    resultados_upload = UploadarDocumentosUseCase(documento_repo, empresa_repo, storage).executar(
+        empresa.id, [ArquivoUploadDTO(nome_original="a.pdf", conteudo=b"x")]
+    )
+    documento_id = resultados_upload[0].documento.id
+    classificacao_repo.criar(
+        Classificacao(
+            id=None, empresa_id=empresa.id, documento_id=documento_id, conta_id=10,
+            origem=OrigemClassificacao.REGRA, regra_id=1,
+        )
+    )
+
+    _, _, _, classificacao = ObterResultadoUseCase(
+        documento_repo, resultado_repo, extracao_repo, classificacao_repo
+    ).executar(documento_id)
+
+    assert classificacao is not None
+    assert classificacao.conta_id == 10
+
+
+def test_obter_resultado_classificacao_none_quando_nao_existe():
+    documento_repo = FakeDocumentoRepository()
+    resultado_repo = FakeOcrResultadoRepository()
+    extracao_repo = FakeExtracaoRepository()
+    classificacao_repo = FakeClassificacaoRepository()
+    empresa_repo = FakeEmpresaRepository()
+    empresa = _empresa(empresa_repo)
+    storage = FakeArmazenamentoArquivos()
+    resultados_upload = UploadarDocumentosUseCase(documento_repo, empresa_repo, storage).executar(
+        empresa.id, [ArquivoUploadDTO(nome_original="a.pdf", conteudo=b"x")]
+    )
+    documento_id = resultados_upload[0].documento.id
+
+    _, _, _, classificacao = ObterResultadoUseCase(
+        documento_repo, resultado_repo, extracao_repo, classificacao_repo
+    ).executar(documento_id)
+
+    assert classificacao is None

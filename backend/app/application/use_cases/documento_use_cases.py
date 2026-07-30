@@ -1,13 +1,14 @@
 from app.application.dto import ArquivoUploadDTO, ResultadoUploadDTO
 from app.application.ports import ArmazenamentoArquivos
 from app.application.repositories import (
+    ClassificacaoRepository,
     DocumentoRepository,
     EmpresaRepository,
     ExtracaoRepository,
     OcrResultadoRepository,
 )
 from app.core.exceptions import ArquivoInvalido, DocumentoNaoEncontrado, EmpresaNaoEncontrada
-from app.domain.entities import Documento, Extracao, OcrResultado
+from app.domain.entities import Classificacao, Documento, Extracao, OcrResultado
 
 
 class UploadarDocumentosUseCase:
@@ -78,15 +79,20 @@ class ObterResultadoUseCase:
         documento_repo: DocumentoRepository,
         resultado_repo: OcrResultadoRepository,
         extracao_repo: ExtracaoRepository,
+        classificacao_repo: ClassificacaoRepository,
     ):
         self._documento_repo = documento_repo
         self._resultado_repo = resultado_repo
         self._extracao_repo = extracao_repo
+        self._classificacao_repo = classificacao_repo
 
-    def executar(self, documento_id: int) -> tuple[Documento, OcrResultado | None, Extracao | None]:
+    def executar(
+        self, documento_id: int
+    ) -> tuple[Documento, OcrResultado | None, Extracao | None, Classificacao | None]:
         documento = self._documento_repo.obter_por_id(documento_id)
         if documento is None:
             raise DocumentoNaoEncontrado(documento_id)
         resultado = self._resultado_repo.obter_por_documento_id(documento_id)
         extracao = self._extracao_repo.obter_por_documento_id(documento_id)
-        return documento, resultado, extracao
+        classificacao = self._classificacao_repo.obter_por_documento_id(documento_id)
+        return documento, resultado, extracao, classificacao

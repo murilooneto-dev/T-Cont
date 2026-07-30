@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_storage
 from app.api.schemas.documento_schemas import (
+    ClassificacaoOut,
     DocumentoOut,
     DocumentoResultadoOut,
     ExtracaoOut,
@@ -28,6 +29,12 @@ from app.infrastructure.repositories.sqlalchemy_ocr_resultado_repository import 
 )
 from app.infrastructure.repositories.sqlalchemy_extracao_repository import (
     SqlAlchemyExtracaoRepository,
+)
+from app.infrastructure.repositories.sqlalchemy_classificacao_repository import (
+    SqlAlchemyClassificacaoRepository,
+)
+from app.infrastructure.repositories.sqlalchemy_conta_repository import (
+    SqlAlchemyContaRepository,
 )
 from app.infrastructure.storage.file_storage import (
     TAMANHO_MAXIMO_BYTES,
@@ -101,9 +108,11 @@ def obter_resultado(documento_id: int, db: Session = Depends(get_db)):
     documento_repo = SqlAlchemyDocumentoRepository(db)
     resultado_repo = SqlAlchemyOcrResultadoRepository(db)
     extracao_repo = SqlAlchemyExtracaoRepository(db)
+    classificacao_repo = SqlAlchemyClassificacaoRepository(db)
+    conta_repo = SqlAlchemyContaRepository(db)
     try:
-        documento, resultado, extracao = ObterResultadoUseCase(
-            documento_repo, resultado_repo, extracao_repo
+        documento, resultado, extracao, classificacao = ObterResultadoUseCase(
+            documento_repo, resultado_repo, extracao_repo, classificacao_repo
         ).executar(documento_id)
     except DocumentoNaoEncontrado as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -117,4 +126,11 @@ def obter_resultado(documento_id: int, db: Session = Depends(get_db)):
         else None
     )
     extracao_out = ExtracaoOut.from_extracao(extracao) if extracao else None
-    return DocumentoResultadoOut(documento=documento, resultado=resultado_out, extracao=extracao_out)
+    classificacao_out = None
+    if classificacao:
+        conta = conta_repo.obter_por_id(classificacao.conta_id)
+        classificacao_out = ClassificacaoOut.from_classificacao(classificacao, conta)
+    return DocumentoResultadoOut(
+        documento=documento, resultado=resultado_out, extracao=extracao_out,
+        classificacao=classificacao_out,
+    )

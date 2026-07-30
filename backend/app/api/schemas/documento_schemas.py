@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.domain.enums import MetodoOcr, StatusDocumento, TipoDocumento
+from app.domain.enums import MetodoOcr, OrigemClassificacao, StatusDocumento, TipoDocumento
 
 
 class DocumentoOut(BaseModel):
@@ -63,7 +63,28 @@ class ExtracaoOut(BaseModel):
         )
 
 
+class ClassificacaoOut(BaseModel):
+    conta_id: int
+    conta_codigo: str
+    conta_descricao: str
+    origem: OrigemClassificacao
+    regra_id: int | None
+    score_similaridade: float | None
+
+    @classmethod
+    def from_classificacao(cls, classificacao, conta) -> "ClassificacaoOut":
+        return cls(
+            conta_id=classificacao.conta_id,
+            conta_codigo=conta.codigo,
+            conta_descricao=conta.descricao,
+            origem=classificacao.origem,
+            regra_id=classificacao.regra_id,
+            score_similaridade=classificacao.score_similaridade,
+        )
+
+
 class DocumentoResultadoOut(BaseModel):
     documento: DocumentoOut
     resultado: OcrResultadoOut | None
     extracao: ExtracaoOut | None
+    classificacao: ClassificacaoOut | None
