@@ -35,3 +35,13 @@ class TipoDocumento(str, Enum):
     DOC = "DOC"
     BOLETO = "BOLETO"
     OUTRO = "OUTRO"
+
+
+class LadoRegra(str, Enum):
+    PAGADOR = "PAGADOR"
+    RECEBEDOR = "RECEBEDOR"
+
+
+class OrigemClassificacao(str, Enum):
+    REGRA = "REGRA"
+    FUZZY = "FUZZY"

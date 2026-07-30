@@ -2,7 +2,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import (
-    Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint,
+    Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -146,10 +146,40 @@ class ExtracaoModel(Base):
     )
 
 
+class RegraModel(Base):
+    __tablename__ = "regras"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    empresa_id: Mapped[int] = mapped_column(
+        ForeignKey("empresas.id"), nullable=False, index=True
+    )
+    conta_id: Mapped[int] = mapped_column(ForeignKey("contas.id"), nullable=False)
+    lado_alvo: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    documento_fiscal: Mapped[str | None] = mapped_column(String(14), nullable=True)
+    tipo_documento: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    valor_min: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    valor_max: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    palavra_chave_nome: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+
+
 class ClassificacaoModel(Base):
     __tablename__ = "classificacoes"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    empresa_id: Mapped[int] = mapped_column(ForeignKey("empresas.id"), nullable=False)
+    empresa_id: Mapped[int] = mapped_column(
+        ForeignKey("empresas.id"), nullable=False, index=True
+    )
+    documento_id: Mapped[int] = mapped_column(
+        ForeignKey("documentos.id"), nullable=False, unique=True
+    )
+    conta_id: Mapped[int] = mapped_column(ForeignKey("contas.id"), nullable=False)
+    origem: Mapped[str] = mapped_column(String(20), nullable=False)
+    regra_id: Mapped[int | None] = mapped_column(ForeignKey("regras.id"), nullable=True)
+    score_similaridade: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, nullable=False
     )
