@@ -9,13 +9,13 @@ function descricaoConta(contas: Conta[], contaId: number): string {
 
 function resumoCondicoes(regra: Regra): string {
   const partes: string[] = [];
-  if (regra.documento_fiscal) partes.push(`CNPJ/CPF ${regra.lado_alvo}: ${regra.documento_fiscal}`);
+  if (regra.documento_fiscal) partes.push(`CNPJ/CPF ${regra.lado_alvo ?? "—"}: ${regra.documento_fiscal}`);
   if (regra.tipo_documento) partes.push(`Tipo: ${regra.tipo_documento}`);
   if (regra.valor_min || regra.valor_max) {
     partes.push(`Valor: ${regra.valor_min ?? "0"} a ${regra.valor_max ?? "∞"}`);
   }
   if (regra.palavra_chave_nome) {
-    partes.push(`Palavra-chave (${regra.lado_alvo}): "${regra.palavra_chave_nome}"`);
+    partes.push(`Palavra-chave (${regra.lado_alvo ?? "—"}): "${regra.palavra_chave_nome}"`);
   }
   return partes.join(" · ");
 }
