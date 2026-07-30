@@ -53,6 +53,7 @@ class SqlAlchemyDocumentoRepository(DocumentoRepository):
         models = (
             self._session.query(DocumentoModel)
             .filter_by(empresa_id=empresa_id, status=StatusDocumento.PENDENTE.value)
+            .order_by(DocumentoModel.id)
             .all()
         )
         return [_to_entity(m) for m in models]

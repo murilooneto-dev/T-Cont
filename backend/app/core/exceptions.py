@@ -99,8 +99,8 @@ class RegraSemLadoAlvo(DomainError):
 class ContaEmUso(DomainError):
     def __init__(self, conta_id: int):
         super().__init__(
-            f"A conta {conta_id} não pode ser apagada porque está em uso por regras "
-            "ou classificações existentes."
+            f"A conta {conta_id} não pode ser apagada porque está em uso por regras, "
+            "classificações ou contas filhas existentes."
         )
 
 
