@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from decimal import Decimal
 
 from app.domain.entities import Documento
 
@@ -55,3 +56,26 @@ class ResultadoUploadDTO:
     documento: Documento | None
     nome_original: str
     erro: str | None
+
+
+@dataclass
+class CriarRegraDTO:
+    conta_id: int
+    lado_alvo: str | None
+    documento_fiscal: str | None
+    tipo_documento: str | None
+    valor_min: Decimal | None
+    valor_max: Decimal | None
+    palavra_chave_nome: str | None
+
+
+@dataclass
+class AtualizarRegraDTO:
+    conta_id: int
+    lado_alvo: str | None
+    documento_fiscal: str | None
+    tipo_documento: str | None
+    valor_min: Decimal | None
+    valor_max: Decimal | None
+    palavra_chave_nome: str | None
+    ativo: bool
