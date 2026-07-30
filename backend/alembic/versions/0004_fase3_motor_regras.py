@@ -45,8 +45,13 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
 
+    op.create_index("ix_regras_empresa_id", "regras", ["empresa_id"])
+    op.create_index("ix_classificacoes_empresa_id", "classificacoes", ["empresa_id"])
+
 
 def downgrade() -> None:
+    op.drop_index("ix_classificacoes_empresa_id", table_name="classificacoes")
+    op.drop_index("ix_regras_empresa_id", table_name="regras")
     op.drop_table("classificacoes")
     op.create_table(
         "classificacoes",

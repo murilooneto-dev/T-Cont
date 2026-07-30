@@ -27,6 +27,12 @@ def test_migration_cria_regras_e_classificacoes_reais(tmp_path):
         "regra_id", "score_similaridade", "created_at",
     }
 
+    regra_indexes = {idx["name"] for idx in inspector.get_indexes("regras")}
+    assert "ix_regras_empresa_id" in regra_indexes
+
+    classificacao_indexes = {idx["name"] for idx in inspector.get_indexes("classificacoes")}
+    assert "ix_classificacoes_empresa_id" in classificacao_indexes
+
     # downgrade must be symmetric
     command.downgrade(alembic_cfg, "0003")
     inspector = inspect(engine)
