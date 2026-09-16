@@ -117,6 +117,7 @@ class CorrigirClassificacaoUseCase:
         )
         if regra_existente is not None:
             regra_existente.conta_id = conta_id
+            regra_existente.ativo = True
             regra_atualizada = self._regra_repo.atualizar(regra_existente)
             return regra_atualizada.id
 

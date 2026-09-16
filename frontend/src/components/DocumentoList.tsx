@@ -38,6 +38,7 @@ export function DocumentoList({
 }) {
   const [resultadoAberto, setResultadoAberto] = useState<DocumentoResultado | null>(null);
   const [contaCorrecaoId, setContaCorrecaoId] = useState<number | "">("");
+  const [erroCorrecao, setErroCorrecao] = useState<string | null>(null);
 
   async function verResultado(documentoId: number) {
     const resultado = await api.documentos.resultado(documentoId);
@@ -46,12 +47,17 @@ export function DocumentoList({
 
   async function corrigirClassificacao() {
     if (resultadoAberto === null || contaCorrecaoId === "") return;
-    const classificacao = await api.documentos.corrigirClassificacao(
-      resultadoAberto.documento.id,
-      contaCorrecaoId,
-    );
-    setResultadoAberto({ ...resultadoAberto, classificacao });
-    setContaCorrecaoId("");
+    setErroCorrecao(null);
+    try {
+      const classificacao = await api.documentos.corrigirClassificacao(
+        resultadoAberto.documento.id,
+        contaCorrecaoId,
+      );
+      setResultadoAberto({ ...resultadoAberto, classificacao });
+      setContaCorrecaoId("");
+    } catch (err) {
+      setErroCorrecao((err as Error).message);
+    }
   }
 
   if (documentos.length === 0) {
@@ -126,11 +132,13 @@ export function DocumentoList({
                 }
               >
                 <option value="">Corrigir para...</option>
-                {contas.map((conta) => (
-                  <option key={conta.id} value={conta.id}>
-                    {conta.codigo} — {conta.descricao}
-                  </option>
-                ))}
+                {contas
+                  .filter((conta) => conta.conta_analitica)
+                  .map((conta) => (
+                    <option key={conta.id} value={conta.id}>
+                      {conta.codigo} — {conta.descricao}
+                    </option>
+                  ))}
               </select>
               <button
                 onClick={corrigirClassificacao}
@@ -140,6 +148,7 @@ export function DocumentoList({
                 Corrigir
               </button>
             </div>
+            {erroCorrecao && <p className="mt-1 text-red-600">{erroCorrecao}</p>}
           </div>
           <p className="mb-1 font-semibold">
             Método: {resultadoAberto.resultado?.metodo} (

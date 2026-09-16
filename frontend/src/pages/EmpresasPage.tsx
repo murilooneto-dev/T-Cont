@@ -20,6 +20,7 @@ export function EmpresasPage() {
   const [planos, setPlanos] = useState<PlanoContas[]>([]);
   const [planoSelecionadoId, setPlanoSelecionadoId] = useState<number | null>(null);
   const [contas, setContas] = useState<Conta[]>([]);
+  const [todasContasEmpresa, setTodasContasEmpresa] = useState<Conta[]>([]);
   const [regras, setRegras] = useState<Regra[]>([]);
   const [nomePlano, setNomePlano] = useState("");
   const [documentos, setDocumentos] = useState<Documento[]>([]);
@@ -68,6 +69,16 @@ export function EmpresasPage() {
     }
     api.planosContas.list(empresaSelecionadaId).then(setPlanos);
   }, [empresaSelecionadaId]);
+
+  useEffect(() => {
+    if (planos.length === 0) {
+      setTodasContasEmpresa([]);
+      return;
+    }
+    Promise.all(planos.map((plano) => api.contas.listByPlano(plano.id))).then((listas) => {
+      setTodasContasEmpresa(listas.flat());
+    });
+  }, [planos]);
 
   const carregarContas = useCallback(() => {
     if (planoSelecionadoId === null) {
@@ -185,7 +196,7 @@ export function EmpresasPage() {
             Processar
           </button>
           {lote && <ProgressoLote lote={lote} onCancelar={handleCancelarLote} />}
-          <DocumentoList documentos={documentos} contas={contas} />
+          <DocumentoList documentos={documentos} contas={todasContasEmpresa} />
         </section>
       )}
 

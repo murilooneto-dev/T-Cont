@@ -131,6 +131,39 @@ def test_corrigir_atualiza_regra_existente_em_vez_de_duplicar():
     assert regras[0].conta_id == ambiente["conta"].id
 
 
+def test_corrigir_reativa_regra_desativada():
+    ambiente = _ambiente()
+    outra_conta = ambiente["conta_repo"].criar(
+        Conta(
+            id=None, plano_conta_id=1, codigo="2", descricao="Outra",
+            natureza=NaturezaConta.DESPESA, conta_analitica=True,
+        )
+    )
+    regra_desativada = ambiente["regra_repo"].criar(
+        Regra(
+            id=None, empresa_id=1, conta_id=outra_conta.id, lado_alvo=LadoRegra.RECEBEDOR,
+            documento_fiscal="12345678000195", tipo_documento=None, valor_min=None,
+            valor_max=None, palavra_chave_nome=None, ativo=False,
+        )
+    )
+    ambiente["extracao_repo"].criar(
+        Extracao(
+            id=None, documento_id=ambiente["documento"].id, pagador_nome=None,
+            pagador_documento=None, recebedor_nome="ENERGISA",
+            recebedor_documento="12345678000195", valor=None, data_pagamento=None,
+            tipo_documento=TipoDocumento.OUTRO, banco_nome=None,
+        )
+    )
+
+    _use_case(ambiente).executar(ambiente["documento"].id, ambiente["conta"].id)
+
+    regras = ambiente["regra_repo"].listar_por_empresa(1)
+    assert len(regras) == 1
+    assert regras[0].id == regra_desativada.id
+    assert regras[0].ativo is True
+    assert regras[0].conta_id == ambiente["conta"].id
+
+
 def test_corrigir_sem_documento_fiscal_nao_cria_regra():
     ambiente = _ambiente()
     ambiente["extracao_repo"].criar(
