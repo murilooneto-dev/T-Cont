@@ -88,3 +88,7 @@ class DocumentoResultadoOut(BaseModel):
     resultado: OcrResultadoOut | None
     extracao: ExtracaoOut | None
     classificacao: ClassificacaoOut | None
+
+
+class CorrigirClassificacaoIn(BaseModel):
+    conta_id: int
