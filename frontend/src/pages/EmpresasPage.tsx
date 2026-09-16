@@ -185,7 +185,7 @@ export function EmpresasPage() {
             Processar
           </button>
           {lote && <ProgressoLote lote={lote} onCancelar={handleCancelarLote} />}
-          <DocumentoList documentos={documentos} />
+          <DocumentoList documentos={documentos} contas={contas} />
         </section>
       )}
 
