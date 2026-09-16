@@ -3,6 +3,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import patch
 
 import fitz
 import pytest
@@ -482,25 +483,32 @@ def test_processar_lote_classifica_por_fuzzy_usando_documento_anterior_do_mesmo_
         },
     )
 
-    _upload(
-        client, empresa_id, "primeiro.pdf",
-        "Favorecido: Energisa Ceara\nCNPJ: 12.345.678/0001-95\nValor: R$ 100,00",
-    )
-    _upload(
-        client, empresa_id, "segundo.pdf",
-        "Favorecido: Energisa Cear\nCNPJ: 98.765.432/0001-10\nValor: R$ 50,00",
-    )
+    # A IA (Ollama) é desativada nesta chamada de propósito: este teste verifica
+    # especificamente o fallback fuzzy (histórico dentro do mesmo lote), e desde
+    # a Fase 4 a IA roda entre a regra e o fuzzy — sem este mock, o resultado
+    # dependeria de estar o Ollama disponível e de qual conta ele escolheria,
+    # tornando o teste não-determinístico para um cenário que não é o que ele
+    # quer exercitar.
+    with patch("app.infrastructure.classificacao.pipeline.classificar_por_ia", return_value=None):
+        _upload(
+            client, empresa_id, "primeiro.pdf",
+            "Favorecido: Energisa Ceara\nCNPJ: 12.345.678/0001-95\nValor: R$ 100,00",
+        )
+        _upload(
+            client, empresa_id, "segundo.pdf",
+            "Favorecido: Energisa Cear\nCNPJ: 98.765.432/0001-10\nValor: R$ 50,00",
+        )
 
-    response = client.post(f"/empresas/{empresa_id}/documentos/processar")
-    lote_id = response.json()["id"]
+        response = client.post(f"/empresas/{empresa_id}/documentos/processar")
+        lote_id = response.json()["id"]
 
-    status_final = None
-    for _ in range(20):
-        status_final = client.get(f"/lotes/{lote_id}").json()
-        if status_final["status"] != "EM_ANDAMENTO":
-            break
-        time.sleep(0.5)
-    assert status_final["status"] == "CONCLUIDO"
+        status_final = None
+        for _ in range(20):
+            status_final = client.get(f"/lotes/{lote_id}").json()
+            if status_final["status"] != "EM_ANDAMENTO":
+                break
+            time.sleep(0.5)
+        assert status_final["status"] == "CONCLUIDO"
 
     documentos = client.get(f"/empresas/{empresa_id}/documentos").json()
     documento_ids_por_nome = {d["nome_exibicao"]: d["id"] for d in documentos}
