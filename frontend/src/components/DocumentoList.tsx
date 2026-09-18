@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api/client";
-import type { Documento, DocumentoResultado, OrigemClassificacao } from "../types/documento";
+import { CorrecaoClassificacao } from "./CorrecaoClassificacao";
+import type { Documento, DocumentoResultado } from "../types/documento";
 import type { Conta } from "../types/planoContas";
 
 function corStatus(status: Documento["status"]): string {
@@ -16,19 +17,6 @@ function corStatus(status: Documento["status"]): string {
   }
 }
 
-function rotuloOrigem(origem: OrigemClassificacao): string {
-  switch (origem) {
-    case "REGRA":
-      return "por regra";
-    case "IA":
-      return "sugestão por IA";
-    case "MANUAL":
-      return "corrigida manualmente";
-    default:
-      return "sugestão por similaridade";
-  }
-}
-
 export function DocumentoList({
   documentos,
   contas,
@@ -37,27 +25,19 @@ export function DocumentoList({
   contas: Conta[];
 }) {
   const [resultadoAberto, setResultadoAberto] = useState<DocumentoResultado | null>(null);
-  const [contaCorrecaoId, setContaCorrecaoId] = useState<number | "">("");
-  const [erroCorrecao, setErroCorrecao] = useState<string | null>(null);
 
   async function verResultado(documentoId: number) {
     const resultado = await api.documentos.resultado(documentoId);
     setResultadoAberto(resultado);
   }
 
-  async function corrigirClassificacao() {
-    if (resultadoAberto === null || contaCorrecaoId === "") return;
-    setErroCorrecao(null);
-    try {
-      const classificacao = await api.documentos.corrigirClassificacao(
-        resultadoAberto.documento.id,
-        contaCorrecaoId,
-      );
-      setResultadoAberto({ ...resultadoAberto, classificacao });
-      setContaCorrecaoId("");
-    } catch (err) {
-      setErroCorrecao((err as Error).message);
-    }
+  async function corrigirClassificacao(contaId: number) {
+    if (resultadoAberto === null) return;
+    const classificacao = await api.documentos.corrigirClassificacao(
+      resultadoAberto.documento.id,
+      contaId,
+    );
+    setResultadoAberto({ ...resultadoAberto, classificacao });
   }
 
   if (documentos.length === 0) {
@@ -109,46 +89,12 @@ export function DocumentoList({
               <span>{resultadoAberto.extracao.banco_nome}</span>
             </div>
           )}
-          <div className="mb-3 rounded border border-slate-200 bg-white p-2">
-            <span className="font-semibold">Classificação: </span>
-            {resultadoAberto.classificacao ? (
-              <span>
-                {resultadoAberto.classificacao.conta_codigo} —{" "}
-                {resultadoAberto.classificacao.conta_descricao} (
-                {rotuloOrigem(resultadoAberto.classificacao.origem)}
-                {resultadoAberto.classificacao.score_similaridade !== null &&
-                  ` — ${Math.round(resultadoAberto.classificacao.score_similaridade * 100)}%`}
-                )
-              </span>
-            ) : (
-              <span>SEM CLASSIFICAÇÃO</span>
-            )}
-            <div className="mt-2 flex items-center gap-2">
-              <select
-                className="rounded border border-slate-300 px-2 py-1 text-xs"
-                value={contaCorrecaoId}
-                onChange={(e) =>
-                  setContaCorrecaoId(e.target.value ? Number(e.target.value) : "")
-                }
-              >
-                <option value="">Corrigir para...</option>
-                {contas
-                  .filter((conta) => conta.conta_analitica)
-                  .map((conta) => (
-                    <option key={conta.id} value={conta.id}>
-                      {conta.codigo} — {conta.descricao}
-                    </option>
-                  ))}
-              </select>
-              <button
-                onClick={corrigirClassificacao}
-                disabled={contaCorrecaoId === ""}
-                className="rounded bg-slate-800 px-2 py-1 text-xs text-white disabled:opacity-50"
-              >
-                Corrigir
-              </button>
-            </div>
-            {erroCorrecao && <p className="mt-1 text-red-600">{erroCorrecao}</p>}
+          <div className="mb-3">
+            <CorrecaoClassificacao
+              classificacao={resultadoAberto.classificacao}
+              contas={contas}
+              onCorrigir={corrigirClassificacao}
+            />
           </div>
           <p className="mb-1 font-semibold">
             Método: {resultadoAberto.resultado?.metodo} (

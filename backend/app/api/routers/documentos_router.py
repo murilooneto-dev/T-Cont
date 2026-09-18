@@ -4,11 +4,16 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db, get_storage
 from app.api.schemas.documento_schemas import (
     ClassificacaoOut,
+    ClassificacaoSugeridaOut,
     CorrigirClassificacaoIn,
+    CorrigirClassificacaoLoteIn,
+    CorrigirClassificacaoLoteOut,
     DocumentoOut,
     DocumentoResultadoOut,
     ExtracaoOut,
+    ItemFilaRevisaoOut,
     OcrResultadoOut,
+    ResultadoCorrecaoLoteItemOut,
     UploadItemOut,
 )
 from app.application.dto import ArquivoUploadDTO
@@ -17,6 +22,7 @@ from app.application.use_cases.documento_use_cases import (
     ObterResultadoUseCase,
     UploadarDocumentosUseCase,
 )
+from app.application.use_cases.fila_revisao_use_cases import ListarFilaRevisaoUseCase
 from app.core.config import settings
 from app.core.exceptions import (
     ContaNaoAnalitica,
@@ -47,7 +53,10 @@ from app.infrastructure.storage.file_storage import (
     TAMANHO_MAXIMO_BYTES,
     LocalFileStorageService,
 )
-from app.application.use_cases.classificacao_use_cases import CorrigirClassificacaoUseCase
+from app.application.use_cases.classificacao_use_cases import (
+    CorrigirClassificacaoEmLoteUseCase,
+    CorrigirClassificacaoUseCase,
+)
 from app.infrastructure.repositories.sqlalchemy_aprendizado_repository import (
     SqlAlchemyAprendizadoRepository,
 )
@@ -120,6 +129,36 @@ def listar_documentos(empresa_id: int, db: Session = Depends(get_db)):
     return [DocumentoOut.model_validate(d, from_attributes=True) for d in documentos]
 
 
+@router.get(
+    "/empresas/{empresa_id}/documentos/fila-revisao", response_model=list[ItemFilaRevisaoOut]
+)
+def listar_fila_revisao(empresa_id: int, db: Session = Depends(get_db)):
+    documento_repo = SqlAlchemyDocumentoRepository(db)
+    extracao_repo = SqlAlchemyExtracaoRepository(db)
+    classificacao_repo = SqlAlchemyClassificacaoRepository(db)
+    conta_repo = SqlAlchemyContaRepository(db)
+    itens = ListarFilaRevisaoUseCase(
+        documento_repo, extracao_repo, classificacao_repo, conta_repo
+    ).executar(empresa_id)
+    return [
+        ItemFilaRevisaoOut(
+            documento=DocumentoOut.model_validate(item.documento, from_attributes=True),
+            extracao=ExtracaoOut.from_extracao(item.extracao) if item.extracao else None,
+            classificacao_sugerida=(
+                ClassificacaoSugeridaOut(
+                    conta_id=item.sugestao.conta_id,
+                    conta_codigo=item.sugestao.conta_codigo,
+                    conta_descricao=item.sugestao.conta_descricao,
+                    score_similaridade=item.sugestao.score_similaridade,
+                )
+                if item.sugestao
+                else None
+            ),
+        )
+        for item in itens
+    ]
+
+
 @router.get("/documentos/{documento_id}/resultado", response_model=DocumentoResultadoOut)
 def obter_resultado(documento_id: int, db: Session = Depends(get_db)):
     documento_repo = SqlAlchemyDocumentoRepository(db)
@@ -152,6 +191,39 @@ def obter_resultado(documento_id: int, db: Session = Depends(get_db)):
         documento=documento, resultado=resultado_out, extracao=extracao_out,
         classificacao=classificacao_out,
     )
+
+
+@router.patch("/documentos/classificacao/lote", response_model=CorrigirClassificacaoLoteOut)
+def corrigir_classificacao_em_lote(
+    payload: CorrigirClassificacaoLoteIn, db: Session = Depends(get_db)
+):
+    documento_repo = SqlAlchemyDocumentoRepository(db)
+    extracao_repo = SqlAlchemyExtracaoRepository(db)
+    classificacao_repo = SqlAlchemyClassificacaoRepository(db)
+    regra_repo = SqlAlchemyRegraRepository(db)
+    aprendizado_repo = SqlAlchemyAprendizadoRepository(db)
+    conta_repo = SqlAlchemyContaRepository(db)
+    plano_repo = SqlAlchemyPlanoContasRepository(db)
+    corrigir_use_case = CorrigirClassificacaoUseCase(
+        documento_repo, extracao_repo, classificacao_repo, regra_repo,
+        aprendizado_repo, conta_repo, plano_repo,
+    )
+    resultados = CorrigirClassificacaoEmLoteUseCase(corrigir_use_case).executar(
+        payload.documento_ids, payload.conta_id
+    )
+    resultados_out = []
+    for resultado in resultados:
+        classificacao_out = None
+        if resultado.classificacao is not None:
+            conta = conta_repo.obter_por_id(resultado.classificacao.conta_id)
+            classificacao_out = ClassificacaoOut.from_classificacao(resultado.classificacao, conta)
+        resultados_out.append(
+            ResultadoCorrecaoLoteItemOut(
+                documento_id=resultado.documento_id, sucesso=resultado.sucesso,
+                classificacao=classificacao_out, erro=resultado.erro,
+            )
+        )
+    return CorrigirClassificacaoLoteOut(resultados=resultados_out)
 
 
 @router.patch("/documentos/{documento_id}/classificacao", response_model=ClassificacaoOut)

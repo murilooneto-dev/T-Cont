@@ -66,3 +66,27 @@ export interface Lote {
   created_at: string;
   concluido_em: string | null;
 }
+
+export interface ClassificacaoSugerida {
+  conta_id: number;
+  conta_codigo: string;
+  conta_descricao: string;
+  score_similaridade: number | null;
+}
+
+export interface ItemFilaRevisao {
+  documento: Documento;
+  extracao: Extracao | null;
+  classificacao_sugerida: ClassificacaoSugerida | null;
+}
+
+export interface ResultadoCorrecaoLoteItem {
+  documento_id: number;
+  sucesso: boolean;
+  classificacao: Classificacao | null;
+  erro: string | null;
+}
+
+export interface CorrecaoLoteResultado {
+  resultados: ResultadoCorrecaoLoteItem[];
+}
