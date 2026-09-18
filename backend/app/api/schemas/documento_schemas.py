@@ -83,6 +83,19 @@ class ClassificacaoOut(BaseModel):
         )
 
 
+class ClassificacaoSugeridaOut(BaseModel):
+    conta_id: int
+    conta_codigo: str
+    conta_descricao: str
+    score_similaridade: float | None
+
+
+class ItemFilaRevisaoOut(BaseModel):
+    documento: DocumentoOut
+    extracao: ExtracaoOut | None
+    classificacao_sugerida: ClassificacaoSugeridaOut | None
+
+
 class DocumentoResultadoOut(BaseModel):
     documento: DocumentoOut
     resultado: OcrResultadoOut | None
