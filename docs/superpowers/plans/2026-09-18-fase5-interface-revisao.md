@@ -838,7 +838,9 @@ In `backend/app/api/routers/documentos_router.py`, add to the schema import bloc
     ResultadoCorrecaoLoteItemOut,
 ```
 
-Add to the use-case import:
+Replace the existing single-name use-case import
+(`from app.application.use_cases.classificacao_use_cases import CorrigirClassificacaoUseCase`)
+with:
 
 ```python
 from app.application.use_cases.classificacao_use_cases import (
