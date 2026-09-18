@@ -105,3 +105,19 @@ class DocumentoResultadoOut(BaseModel):
 
 class CorrigirClassificacaoIn(BaseModel):
     conta_id: int
+
+
+class CorrigirClassificacaoLoteIn(BaseModel):
+    documento_ids: list[int]
+    conta_id: int
+
+
+class ResultadoCorrecaoLoteItemOut(BaseModel):
+    documento_id: int
+    sucesso: bool
+    classificacao: ClassificacaoOut | None = None
+    erro: str | None = None
+
+
+class CorrigirClassificacaoLoteOut(BaseModel):
+    resultados: list[ResultadoCorrecaoLoteItemOut]
