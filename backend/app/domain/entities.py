@@ -122,3 +122,15 @@ class Classificacao:
     regra_id: int | None = None
     score_similaridade: float | None = None
     created_at: datetime | None = None
+
+
+@dataclass
+class Aprendizado:
+    id: int | None
+    empresa_id: int
+    documento_id: int
+    conta_anterior_id: int | None
+    origem_anterior: OrigemClassificacao | None
+    conta_corrigida_id: int
+    regra_id: int | None = None
+    created_at: datetime | None = None

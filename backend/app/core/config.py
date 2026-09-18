@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     ocr_max_workers: int = 2
     # Limite de arquivos aceitos por requisição de upload.
     max_arquivos_por_upload: int = 50
+    # Ollama local (Fase 4 — classificação por IA). Assume que o servidor já está
+    # rodando e o modelo já foi baixado (`ollama pull <modelo>`) manualmente.
+    ollama_host: str = "http://localhost:11434"
+    ollama_model: str = "llama3.2"
+    ollama_timeout_segundos: int = 15
 
 
 settings = Settings()

@@ -39,7 +39,7 @@ export interface Extracao {
   banco_nome: string;
 }
 
-export type OrigemClassificacao = "REGRA" | "FUZZY";
+export type OrigemClassificacao = "REGRA" | "FUZZY" | "IA" | "MANUAL";
 
 export interface Classificacao {
   conta_id: number;

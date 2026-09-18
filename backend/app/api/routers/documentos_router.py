@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db, get_storage
 from app.api.schemas.documento_schemas import (
     ClassificacaoOut,
+    CorrigirClassificacaoIn,
     DocumentoOut,
     DocumentoResultadoOut,
     ExtracaoOut,
@@ -17,7 +18,13 @@ from app.application.use_cases.documento_use_cases import (
     UploadarDocumentosUseCase,
 )
 from app.core.config import settings
-from app.core.exceptions import DocumentoNaoEncontrado, EmpresaNaoEncontrada
+from app.core.exceptions import (
+    ContaNaoAnalitica,
+    ContaNaoEncontrada,
+    ContaNaoPertenceAEmpresa,
+    DocumentoNaoEncontrado,
+    EmpresaNaoEncontrada,
+)
 from app.infrastructure.repositories.sqlalchemy_documento_repository import (
     SqlAlchemyDocumentoRepository,
 )
@@ -39,6 +46,16 @@ from app.infrastructure.repositories.sqlalchemy_conta_repository import (
 from app.infrastructure.storage.file_storage import (
     TAMANHO_MAXIMO_BYTES,
     LocalFileStorageService,
+)
+from app.application.use_cases.classificacao_use_cases import CorrigirClassificacaoUseCase
+from app.infrastructure.repositories.sqlalchemy_aprendizado_repository import (
+    SqlAlchemyAprendizadoRepository,
+)
+from app.infrastructure.repositories.sqlalchemy_plano_contas_repository import (
+    SqlAlchemyPlanoContasRepository,
+)
+from app.infrastructure.repositories.sqlalchemy_regra_repository import (
+    SqlAlchemyRegraRepository,
 )
 
 router = APIRouter(tags=["documentos"])
@@ -135,3 +152,29 @@ def obter_resultado(documento_id: int, db: Session = Depends(get_db)):
         documento=documento, resultado=resultado_out, extracao=extracao_out,
         classificacao=classificacao_out,
     )
+
+
+@router.patch("/documentos/{documento_id}/classificacao", response_model=ClassificacaoOut)
+def corrigir_classificacao(
+    documento_id: int, payload: CorrigirClassificacaoIn, db: Session = Depends(get_db)
+):
+    documento_repo = SqlAlchemyDocumentoRepository(db)
+    extracao_repo = SqlAlchemyExtracaoRepository(db)
+    classificacao_repo = SqlAlchemyClassificacaoRepository(db)
+    regra_repo = SqlAlchemyRegraRepository(db)
+    aprendizado_repo = SqlAlchemyAprendizadoRepository(db)
+    conta_repo = SqlAlchemyContaRepository(db)
+    plano_repo = SqlAlchemyPlanoContasRepository(db)
+    try:
+        classificacao = CorrigirClassificacaoUseCase(
+            documento_repo, extracao_repo, classificacao_repo, regra_repo,
+            aprendizado_repo, conta_repo, plano_repo,
+        ).executar(documento_id, payload.conta_id)
+    except DocumentoNaoEncontrado as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ContaNaoEncontrada as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ContaNaoPertenceAEmpresa, ContaNaoAnalitica) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    conta = conta_repo.obter_por_id(classificacao.conta_id)
+    return ClassificacaoOut.from_classificacao(classificacao, conta)

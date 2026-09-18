@@ -267,3 +267,49 @@ def test_resultado_com_classificacao_apos_conta_deletada(ambiente_com_worker):
     assert resultado["classificacao"] is None
     # Documento está intacto
     assert resultado["documento"]["id"] == documento_id
+
+
+def test_corrigir_classificacao_cria_regra_e_atualiza_documento(client, empresa_id):
+    plano_id = client.post(
+        f"/empresas/{empresa_id}/planos-contas", json={"nome": "Plano"}
+    ).json()["id"]
+    conta_id = client.post(
+        f"/planos-contas/{plano_id}/contas",
+        json={
+            "codigo": "1", "descricao": "Energia", "natureza": "DESPESA",
+            "conta_analitica": True, "conta_pai_id": None,
+        },
+    ).json()["id"]
+    documento_id = client.post(
+        f"/empresas/{empresa_id}/documentos",
+        files={"arquivos": ("a.pdf", b"conteudo", "application/pdf")},
+    ).json()[0]["documento"]["id"]
+
+    resposta = client.patch(
+        f"/documentos/{documento_id}/classificacao", json={"conta_id": conta_id}
+    )
+
+    assert resposta.status_code == 200
+    body = resposta.json()
+    assert body["conta_id"] == conta_id
+    assert body["origem"] == "MANUAL"
+
+    resultado = client.get(f"/documentos/{documento_id}/resultado").json()
+    assert resultado["classificacao"]["origem"] == "MANUAL"
+    assert resultado["classificacao"]["conta_id"] == conta_id
+
+
+def test_corrigir_classificacao_documento_inexistente_retorna_404(client, empresa_id):
+    plano_id = client.post(
+        f"/empresas/{empresa_id}/planos-contas", json={"nome": "Plano"}
+    ).json()["id"]
+    conta_id = client.post(
+        f"/planos-contas/{plano_id}/contas",
+        json={
+            "codigo": "1", "descricao": "Energia", "natureza": "DESPESA",
+            "conta_analitica": True, "conta_pai_id": None,
+        },
+    ).json()["id"]
+
+    resposta = client.patch("/documentos/999/classificacao", json={"conta_id": conta_id})
+    assert resposta.status_code == 404

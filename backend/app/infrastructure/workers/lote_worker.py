@@ -41,6 +41,16 @@ def _resetar_documentos_processando_para_pendente(documento_repo, documento_ids:
             documento_repo.atualizar(documento)
 
 
+def _listar_contas_analiticas(conta_repo, plano_repo, empresa_id: int) -> list:
+    """Contas analíticas de todos os planos de contas da empresa — usadas como
+    as opções oferecidas à IA (Fase 4) na classificação por fallback.
+    """
+    contas = []
+    for plano in plano_repo.listar_por_empresa(empresa_id):
+        contas.extend(c for c in conta_repo.listar_por_plano(plano.id) if c.conta_analitica)
+    return contas
+
+
 def _marcar_lote_como_falhou(
     session_factory: Callable[[], object], lote_id: int, documento_ids: list[int]
 ) -> None:
@@ -121,6 +131,12 @@ def processar_lote_em_background(
     from app.infrastructure.repositories.sqlalchemy_classificacao_repository import (
         SqlAlchemyClassificacaoRepository,
     )
+    from app.infrastructure.repositories.sqlalchemy_conta_repository import (
+        SqlAlchemyContaRepository,
+    )
+    from app.infrastructure.repositories.sqlalchemy_plano_contas_repository import (
+        SqlAlchemyPlanoContasRepository,
+    )
     from app.infrastructure.storage.file_storage import LocalFileStorageService
 
     session = session_factory()
@@ -130,6 +146,8 @@ def processar_lote_em_background(
         extracao_repo = SqlAlchemyExtracaoRepository(session)
         regra_repo = SqlAlchemyRegraRepository(session)
         classificacao_repo = SqlAlchemyClassificacaoRepository(session)
+        conta_repo = SqlAlchemyContaRepository(session)
+        plano_repo = SqlAlchemyPlanoContasRepository(session)
         lote_repo = SqlAlchemyLoteProcessamentoRepository(session)
         storage = LocalFileStorageService(Path(storage_root))
 
@@ -162,6 +180,11 @@ def processar_lote_em_background(
             # histórico é acrescido em memória conforme cada novo documento é
             # classificado, evitando N+1 consultas repetidas por documento.
             regras = regra_repo.listar_por_empresa(empresa_id_lote) if empresa_id_lote is not None else []
+            contas_disponiveis = (
+                _listar_contas_analiticas(conta_repo, plano_repo, empresa_id_lote)
+                if empresa_id_lote is not None
+                else []
+            )
             historico_fuzzy: list[tuple[str, int, datetime]] = []
             if empresa_id_lote is not None:
                 for classificacao_existente in classificacao_repo.listar_por_empresa(empresa_id_lote):
@@ -230,7 +253,7 @@ def processar_lote_em_background(
                     )
 
                     resultado_classificacao = classificar_documento(
-                        extracao_criada, regras, historico_fuzzy
+                        extracao_criada, regras, contas_disponiveis, historico_fuzzy
                     )
                     if resultado_classificacao is not None:
                         nova_classificacao = classificacao_repo.criar(

@@ -1,6 +1,8 @@
 import type { Empresa, EmpresaCreateInput } from "../types/empresa";
 import type { Conta, ImportPreview, PlanoContas } from "../types/planoContas";
-import type { Documento, DocumentoResultado, Lote, UploadItemResultado } from "../types/documento";
+import type {
+  Classificacao, Documento, DocumentoResultado, Lote, UploadItemResultado,
+} from "../types/documento";
 import type { Regra, RegraCreateInput, RegraUpdateInput } from "../types/regra";
 
 const BASE_URL = "http://localhost:8000";
@@ -65,6 +67,11 @@ export const api = {
     list: (empresaId: number) => request<Documento[]>(`/empresas/${empresaId}/documentos`),
     resultado: (documentoId: number) =>
       request<DocumentoResultado>(`/documentos/${documentoId}/resultado`),
+    corrigirClassificacao: (documentoId: number, contaId: number) =>
+      request<Classificacao>(`/documentos/${documentoId}/classificacao`, {
+        method: "PATCH",
+        body: JSON.stringify({ conta_id: contaId }),
+      }),
   },
   lotes: {
     processar: (empresaId: number) =>

@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
 from app.domain.entities import (
-    Classificacao, Conta, Documento, Empresa, Extracao, LoteProcessamento, OcrResultado,
-    PlanoContas, Regra,
+    Aprendizado, Classificacao, Conta, Documento, Empresa, Extracao, LoteProcessamento,
+    OcrResultado, PlanoContas, Regra,
 )
 
 
@@ -124,3 +124,14 @@ class ClassificacaoRepository(ABC):
 
     @abstractmethod
     def listar_por_empresa(self, empresa_id: int) -> list[Classificacao]: ...
+
+    @abstractmethod
+    def atualizar(self, classificacao: Classificacao) -> Classificacao: ...
+
+
+class AprendizadoRepository(ABC):
+    @abstractmethod
+    def criar(self, aprendizado: Aprendizado) -> Aprendizado: ...
+
+    @abstractmethod
+    def listar_por_empresa(self, empresa_id: int) -> list[Aprendizado]: ...
