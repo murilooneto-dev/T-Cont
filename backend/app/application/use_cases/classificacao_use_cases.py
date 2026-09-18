@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from app.application.repositories import (
     AprendizadoRepository,
     ClassificacaoRepository,
@@ -129,3 +131,35 @@ class CorrigirClassificacaoUseCase:
             )
         )
         return nova_regra.id
+
+
+@dataclass
+class ResultadoCorrecaoLoteItem:
+    documento_id: int
+    sucesso: bool
+    classificacao: Classificacao | None = None
+    erro: str | None = None
+
+
+class CorrigirClassificacaoEmLoteUseCase:
+    def __init__(self, corrigir_use_case: CorrigirClassificacaoUseCase):
+        self._corrigir_use_case = corrigir_use_case
+
+    def executar(self, documento_ids: list[int], conta_id: int) -> list[ResultadoCorrecaoLoteItem]:
+        resultados: list[ResultadoCorrecaoLoteItem] = []
+        for documento_id in documento_ids:
+            try:
+                classificacao = self._corrigir_use_case.executar(documento_id, conta_id)
+                resultados.append(
+                    ResultadoCorrecaoLoteItem(
+                        documento_id=documento_id, sucesso=True, classificacao=classificacao
+                    )
+                )
+            except (
+                DocumentoNaoEncontrado, ContaNaoEncontrada, ContaNaoPertenceAEmpresa,
+                ContaNaoAnalitica,
+            ) as exc:
+                resultados.append(
+                    ResultadoCorrecaoLoteItem(documento_id=documento_id, sucesso=False, erro=str(exc))
+                )
+        return resultados
