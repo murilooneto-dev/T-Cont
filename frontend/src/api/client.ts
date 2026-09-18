@@ -1,7 +1,8 @@
 import type { Empresa, EmpresaCreateInput } from "../types/empresa";
 import type { Conta, ImportPreview, PlanoContas } from "../types/planoContas";
 import type {
-  Classificacao, Documento, DocumentoResultado, Lote, UploadItemResultado,
+  Classificacao, CorrecaoLoteResultado, Documento, DocumentoResultado, ItemFilaRevisao, Lote,
+  UploadItemResultado,
 } from "../types/documento";
 import type { Regra, RegraCreateInput, RegraUpdateInput } from "../types/regra";
 
@@ -71,6 +72,13 @@ export const api = {
       request<Classificacao>(`/documentos/${documentoId}/classificacao`, {
         method: "PATCH",
         body: JSON.stringify({ conta_id: contaId }),
+      }),
+    filaRevisao: (empresaId: number) =>
+      request<ItemFilaRevisao[]>(`/empresas/${empresaId}/documentos/fila-revisao`),
+    corrigirClassificacaoLote: (documentoIds: number[], contaId: number) =>
+      request<CorrecaoLoteResultado>("/documentos/classificacao/lote", {
+        method: "PATCH",
+        body: JSON.stringify({ documento_ids: documentoIds, conta_id: contaId }),
       }),
   },
   lotes: {
