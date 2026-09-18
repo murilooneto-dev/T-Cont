@@ -5,6 +5,7 @@ import { DocumentoDropzone } from "../components/DocumentoDropzone";
 import { DocumentoList } from "../components/DocumentoList";
 import { EmpresaForm } from "../components/EmpresaForm";
 import { EmpresaList } from "../components/EmpresaList";
+import { FilaRevisao } from "../components/FilaRevisao";
 import { PlanoContasImport } from "../components/PlanoContasImport";
 import { ProgressoLote } from "../components/ProgressoLote";
 import { RegraForm } from "../components/RegraForm";
@@ -25,6 +26,7 @@ export function EmpresasPage() {
   const [nomePlano, setNomePlano] = useState("");
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [lote, setLote] = useState<Lote | null>(null);
+  const [abaDocumentos, setAbaDocumentos] = useState<"lista" | "fila-revisao">("lista");
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -196,7 +198,33 @@ export function EmpresasPage() {
             Processar
           </button>
           {lote && <ProgressoLote lote={lote} onCancelar={handleCancelarLote} />}
-          <DocumentoList documentos={documentos} contas={todasContasEmpresa} />
+          <div className="flex gap-2 border-b border-slate-200">
+            <button
+              onClick={() => setAbaDocumentos("lista")}
+              className={`px-3 py-1.5 text-sm ${
+                abaDocumentos === "lista"
+                  ? "border-b-2 border-slate-800 font-semibold text-slate-800"
+                  : "text-slate-500"
+              }`}
+            >
+              Todos os Documentos
+            </button>
+            <button
+              onClick={() => setAbaDocumentos("fila-revisao")}
+              className={`px-3 py-1.5 text-sm ${
+                abaDocumentos === "fila-revisao"
+                  ? "border-b-2 border-slate-800 font-semibold text-slate-800"
+                  : "text-slate-500"
+              }`}
+            >
+              Fila de Revisão
+            </button>
+          </div>
+          {abaDocumentos === "lista" ? (
+            <DocumentoList documentos={documentos} contas={todasContasEmpresa} />
+          ) : (
+            <FilaRevisao empresaId={empresaSelecionadaId} contas={todasContasEmpresa} />
+          )}
         </section>
       )}
 
