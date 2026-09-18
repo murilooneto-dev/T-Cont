@@ -29,12 +29,21 @@ export function FilaRevisao({
   const [errosLote, setErrosLote] = useState<Record<number, string>>({});
   const [focoIndex, setFocoIndex] = useState(0);
 
-  function carregarFila() {
-    api.documentos.filaRevisao(empresaId).then((novosItens) => {
-      setItens(novosItens);
-      setSelecionados(new Set());
-      setFocoIndex(0);
-    });
+  function carregarFila(
+    manterSelecionados?: Set<number>,
+    manterErros?: Record<number, string>,
+  ) {
+    api.documentos
+      .filaRevisao(empresaId)
+      .then((novosItens) => {
+        setItens(novosItens);
+        setSelecionados(manterSelecionados ?? new Set());
+        setErrosLote(manterErros ?? {});
+        setFocoIndex(0);
+      })
+      .catch((err) => {
+        console.error("Erro ao carregar fila de revisão:", err);
+      });
   }
 
   useEffect(() => {
@@ -52,33 +61,43 @@ export function FilaRevisao({
   }
 
   async function confirmar(documentoId: number, contaId: number) {
-    await api.documentos.corrigirClassificacao(documentoId, contaId);
-    carregarFila();
+    try {
+      await api.documentos.corrigirClassificacao(documentoId, contaId);
+      const errosRestantes = { ...errosLote };
+      delete errosRestantes[documentoId];
+      carregarFila(undefined, errosRestantes);
+    } catch (err) {
+      setErrosLote((atual) => ({
+        ...atual,
+        [documentoId]: (err as Error).message,
+      }));
+    }
   }
 
   async function aplicarLote() {
     if (contaLoteId === "" || selecionados.size === 0) return;
-    const resultado = await api.documentos.corrigirClassificacaoLote(
-      Array.from(selecionados),
-      contaLoteId,
-    );
-    const novosErros: Record<number, string> = {};
-    const idsComSucesso = new Set<number>();
-    for (const item of resultado.resultados) {
-      if (item.sucesso) idsComSucesso.add(item.documento_id);
-      else novosErros[item.documento_id] = item.erro ?? "Erro desconhecido.";
-    }
-    setErrosLote(novosErros);
-    setSelecionados((atual) => {
-      const restantes = new Set(atual);
+    try {
+      const resultado = await api.documentos.corrigirClassificacaoLote(
+        Array.from(selecionados),
+        contaLoteId,
+      );
+      const novosErros: Record<number, string> = {};
+      const idsComSucesso = new Set<number>();
+      for (const item of resultado.resultados) {
+        if (item.sucesso) idsComSucesso.add(item.documento_id);
+        else novosErros[item.documento_id] = item.erro ?? "Erro desconhecido.";
+      }
+      const restantes = new Set(selecionados);
       idsComSucesso.forEach((id) => restantes.delete(id));
-      return restantes;
-    });
-    setContaLoteId("");
-    carregarFila();
+      setContaLoteId("");
+      carregarFila(restantes, novosErros);
+    } catch (err) {
+      console.error("Erro ao aplicar classificação em lote:", err);
+    }
   }
 
   function handleKeyDown(e: KeyboardEvent) {
+    if (e.target !== e.currentTarget) return;
     if (itens.length === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
