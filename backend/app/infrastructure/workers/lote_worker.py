@@ -229,15 +229,16 @@ def processar_lote_em_background(
                     documento.mensagem_erro = resultado_pipeline.erro
                 else:
                     documento.status = StatusDocumento.CONCLUIDO
+                    texto_concatenado = "\n".join(resultado_pipeline.textos_por_pagina)
                     resultado_repo.criar(
                         OcrResultado(
                             id=None, documento_id=documento_id,
-                            texto_extraido=resultado_pipeline.texto,
+                            texto_extraido=texto_concatenado,
                             metodo=resultado_pipeline.metodo,
                             tempo_processamento_ms=resultado_pipeline.tempo_processamento_ms,
                         )
                     )
-                    dados = extrair_dados_documento(resultado_pipeline.texto)
+                    dados = extrair_dados_documento(texto_concatenado)
                     extracao_criada = extracao_repo.criar(
                         Extracao(
                             id=None, documento_id=documento_id,
