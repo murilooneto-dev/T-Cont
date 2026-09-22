@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_storage
@@ -23,6 +25,11 @@ from app.application.use_cases.documento_use_cases import (
     UploadarDocumentosUseCase,
 )
 from app.application.use_cases.fila_revisao_use_cases import ListarFilaRevisaoUseCase
+from app.application.use_cases.exportacao_use_cases import ExportarDocumentosUseCase
+from app.infrastructure.spreadsheet.documentos_exporter import (
+    XLSX_MEDIA_TYPE,
+    gerar_planilha_documentos,
+)
 from app.core.config import settings
 from app.core.exceptions import (
     ContaNaoAnalitica,
@@ -157,6 +164,27 @@ def listar_fila_revisao(empresa_id: int, db: Session = Depends(get_db)):
         )
         for item in itens
     ]
+
+
+@router.get("/empresas/{empresa_id}/documentos/exportar")
+def exportar_documentos(empresa_id: int, db: Session = Depends(get_db)):
+    try:
+        exportacao = ExportarDocumentosUseCase(
+            SqlAlchemyEmpresaRepository(db),
+            SqlAlchemyDocumentoRepository(db),
+            SqlAlchemyExtracaoRepository(db),
+            SqlAlchemyClassificacaoRepository(db),
+            SqlAlchemyContaRepository(db),
+        ).executar(empresa_id)
+    except EmpresaNaoEncontrada as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    cnpj = "".join(caractere for caractere in exportacao.cnpj_empresa if caractere.isdigit())
+    nome_arquivo = f"comprovantes_{cnpj}_{date.today().isoformat()}.xlsx"
+    return Response(
+        content=gerar_planilha_documentos(exportacao.linhas),
+        media_type=XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
+    )
 
 
 @router.get("/documentos/{documento_id}/resultado", response_model=DocumentoResultadoOut)
