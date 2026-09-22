@@ -1,9 +1,12 @@
 import fitz
 
-# Comprovantes de pagamento praticamente nunca passam de duas páginas. O limite
-# existe para que um PDF gigante (acidental ou malicioso) não renderize
-# centenas de bitmaps e estoure a memória do worker.
-MAX_PAGINAS = 20
+# Um comprovante avulso quase sempre tem 1-2 páginas, mas um "documento
+# unificado" (Fase Documentos Unificados) pode ser um lote inteiro de
+# comprovantes de um mês num único PDF. O limite existe para que um PDF
+# gigante (acidental ou malicioso) não renderize milhares de bitmaps e
+# estoure a memória do worker — 300 páginas cobre um lote mensal real com
+# folga.
+MAX_PAGINAS = 300
 
 
 class PdfComPaginasDemais(Exception):
