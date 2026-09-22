@@ -1,14 +1,29 @@
 import csv
 import io
+import re
 from dataclasses import dataclass
 
 from openpyxl import load_workbook
 
 from app.core.exceptions import ImportacaoPlanoContasInvalida
+from app.domain.enums import NaturezaConta
 from app.infrastructure.spreadsheet.column_detector import (
     CAMPOS_OBRIGATORIOS,
     detectar_colunas,
 )
+
+_CODIGO_RE = re.compile(r"^(\d+(?:\.\d+)*)")
+
+_REGRAS_NATUREZA: list[tuple[str, NaturezaConta]] = [
+    ("2.3", NaturezaConta.PATRIMONIO_LIQUIDO),
+    ("2.1", NaturezaConta.PASSIVO),
+    ("2.2", NaturezaConta.PASSIVO),
+    ("3.1", NaturezaConta.RECEITA),
+    ("3.2", NaturezaConta.DESPESA),
+    ("1", NaturezaConta.ATIVO),
+    ("2", NaturezaConta.PASSIVO),
+    ("3", NaturezaConta.RECEITA),
+]
 
 
 @dataclass
@@ -76,6 +91,82 @@ def _parse_bool(valor: str | None) -> bool | None:
     return valor.strip().lower() in {"true", "verdadeiro", "sim", "1"}
 
 
+def _extrair_codigo(celula: str) -> str | None:
+    match = _CODIGO_RE.match((celula or "").strip())
+    return match.group(1) if match else None
+
+
+def _inferir_natureza(codigo: str) -> NaturezaConta:
+    for prefixo, natureza in _REGRAS_NATUREZA:
+        if codigo == prefixo or codigo.startswith(prefixo + "."):
+            return natureza
+    # Alguns planos de contas têm uma raiz "4" (Resultado do Exercício,
+    # Balanço de Abertura) fora da convenção 1/2/3 e sem equivalente exato
+    # entre os 5 valores de NaturezaConta — são contas de apuração/fechamento,
+    # tipicamente sintéticas e fora do uso operacional do classificador.
+    # Decisão confirmada com o usuário: cair em ATIVO por padrão é aceitável.
+    return NaturezaConta.ATIVO
+
+
+def _parece_relatorio_hierarquico(linhas_brutas: list[list[str]]) -> bool:
+    """Detecta relatórios contábeis hierárquicos exportados por ERPs.
+
+    Nesses relatórios o código/classificação vem sempre na primeira coluna,
+    mas o nome da conta muda de coluna conforme o nível hierárquico (a
+    indentação é codificada em posição de coluna), e não há coluna de
+    natureza/analítica — só dá pra inferir pelo próprio código. Exigir 2+
+    códigos com ponto evita falso positivo num CSV simples cuja primeira
+    coluna por acaso seja numérica.
+    """
+    contagem = 0
+    for linha in linhas_brutas:
+        codigo = _extrair_codigo(linha[0]) if linha else None
+        if codigo and "." in codigo:
+            contagem += 1
+            if contagem >= 2:
+                return True
+    return False
+
+
+def _parsear_relatorio_hierarquico(linhas_brutas: list[list[str]]) -> ParsePlanoContasResultado:
+    linhas: list[LinhaPlanoContas] = []
+    for linha in linhas_brutas:
+        if not linha:
+            continue
+        codigo = _extrair_codigo(linha[0])
+        if codigo is None:
+            # Linha de cabeçalho/rodapé de página do relatório impresso
+            # (ex.: "TESSERATO CONTABILIDADE LTDA", "Página : 2") — não tem
+            # um código hierárquico válido na primeira coluna, então não é
+            # uma linha de conta.
+            continue
+
+        descricao = ""
+        for celula in linha[1:]:
+            if celula and celula.strip():
+                descricao = celula.strip()
+                break
+
+        partes = codigo.split(".")
+        conta_pai = ".".join(partes[:-1]) if len(partes) > 1 else None
+
+        linhas.append(
+            LinhaPlanoContas(
+                codigo=codigo,
+                descricao=descricao,
+                natureza=_inferir_natureza(codigo).value,
+                conta_analitica=None,
+                conta_pai=conta_pai,
+            )
+        )
+
+    mapeamento = {
+        "codigo": 0, "descricao": None, "natureza": None,
+        "conta_analitica": None, "conta_pai": None,
+    }
+    return ParsePlanoContasResultado(mapeamento=mapeamento, linhas=linhas)
+
+
 def parsear_planilha(
     conteudo: bytes, nome_arquivo: str | None
 ) -> ParsePlanoContasResultado:
@@ -92,6 +183,8 @@ def parsear_planilha(
 
     faltantes = [campo for campo in CAMPOS_OBRIGATORIOS if mapeamento.get(campo) is None]
     if faltantes:
+        if _parece_relatorio_hierarquico(linhas_brutas):
+            return _parsear_relatorio_hierarquico(linhas_brutas)
         raise ImportacaoPlanoContasInvalida(
             "Não foi possível identificar as colunas obrigatórias "
             f"{faltantes} no cabeçalho {cabecalhos}. Ajuste os nomes das colunas e reenvie."

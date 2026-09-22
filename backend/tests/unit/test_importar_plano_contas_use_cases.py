@@ -225,6 +225,29 @@ def test_confirmar_importacao_repetida_e_rejeitada(plano_repo):
     assert len(repo.listar_por_plano(1)) == 2
 
 
+def test_confirmar_importacao_com_linhas_do_parser_hierarquico(plano_repo):
+    # Simula exatamente a saída de _parsear_relatorio_hierarquico: natureza já
+    # resolvida como string do enum, conta_analitica sempre None (derivada
+    # pelo grafo pai/filho), conta_pai calculado truncando o código.
+    repo = FakeContaRepository()
+    linhas = [
+        LinhaPlanoContas(codigo="1", descricao="ATIVO", natureza="ATIVO", conta_analitica=None, conta_pai=None),
+        LinhaPlanoContas(codigo="1.1", descricao="ATIVO CIRCULANTE", natureza="ATIVO", conta_analitica=None, conta_pai="1"),
+        LinhaPlanoContas(codigo="1.1.01", descricao="Caixa", natureza="ATIVO", conta_analitica=None, conta_pai="1.1"),
+    ]
+
+    contas = ConfirmarImportacaoUseCase(repo, plano_repo).executar(plano_conta_id=1, linhas=linhas)
+
+    por_codigo = {c.codigo: c for c in contas}
+    assert por_codigo["1"].conta_pai_id is None
+    assert por_codigo["1.1"].conta_pai_id == por_codigo["1"].id
+    assert por_codigo["1.1.01"].conta_pai_id == por_codigo["1.1"].id
+    assert por_codigo["1"].conta_analitica is False
+    assert por_codigo["1.1"].conta_analitica is False
+    assert por_codigo["1.1.01"].conta_analitica is True
+    assert all(c.natureza.value == "ATIVO" for c in contas)
+
+
 def test_confirmar_importacao_rejeita_codigos_repetidos_no_arquivo(plano_repo):
     repo = FakeContaRepository()
     linhas = [

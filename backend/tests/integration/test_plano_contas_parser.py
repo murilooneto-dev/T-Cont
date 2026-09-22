@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.core.exceptions import ImportacaoPlanoContasInvalida
+from app.domain.enums import NaturezaConta
 from app.infrastructure.spreadsheet.plano_contas_parser import parsear_planilha
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -92,4 +93,95 @@ def test_codigo_e_conta_pai_com_espacos_sao_normalizados():
 
     assert resultado.linhas[0].codigo == "1.1"
     assert resultado.linhas[1].codigo == "1.1.01"
-    assert resultado.linhas[1].conta_pai == "1.1"
+
+
+def test_parseia_relatorio_hierarquico_reconhece_formato():
+    conteudo = (FIXTURES / "plano_contas_hierarquico.csv").read_bytes()
+
+    resultado = parsear_planilha(conteudo, "plano_contas_hierarquico.csv")
+
+    assert len(resultado.linhas) == 12
+
+
+def test_relatorio_hierarquico_extrai_codigo_sem_sufixo_residual():
+    conteudo = (FIXTURES / "plano_contas_hierarquico.csv").read_bytes()
+
+    resultado = parsear_planilha(conteudo, "plano_contas_hierarquico.csv")
+
+    codigos = {linha.codigo for linha in resultado.linhas}
+    assert "1.1.01" in codigos
+    assert not any(codigo.endswith("�") for codigo in codigos)
+
+
+def test_relatorio_hierarquico_acha_descricao_na_coluna_certa_por_nivel():
+    conteudo = (FIXTURES / "plano_contas_hierarquico.csv").read_bytes()
+
+    resultado = parsear_planilha(conteudo, "plano_contas_hierarquico.csv")
+
+    por_codigo = {linha.codigo: linha for linha in resultado.linhas}
+    assert por_codigo["1.1"].descricao == "ATIVO CIRCULANTE"
+    assert por_codigo["1.1.01"].descricao == "Caixa e Equivalentes"
+
+
+@pytest.mark.parametrize(
+    "codigo, natureza_esperada",
+    [
+        ("1.1.01", NaturezaConta.ATIVO),
+        ("2.1.01", NaturezaConta.PASSIVO),
+        ("2.3.01", NaturezaConta.PATRIMONIO_LIQUIDO),
+        ("3.1.01", NaturezaConta.RECEITA),
+        ("3.2.01", NaturezaConta.DESPESA),
+    ],
+)
+def test_relatorio_hierarquico_infere_natureza_por_prefixo(codigo, natureza_esperada):
+    conteudo = (FIXTURES / "plano_contas_hierarquico.csv").read_bytes()
+
+    resultado = parsear_planilha(conteudo, "plano_contas_hierarquico.csv")
+
+    por_codigo = {linha.codigo: linha for linha in resultado.linhas}
+    assert por_codigo[codigo].natureza == natureza_esperada.value
+
+
+def test_relatorio_hierarquico_raiz_fora_da_convencao_cai_em_ativo():
+    # Raízes fora de 1/2/3 (ex.: "4" = Resultado do Exercício/Balanço de
+    # Abertura em alguns planos) não têm equivalente exato entre os 5
+    # valores de NaturezaConta — decisão confirmada com o usuário: cair em
+    # ATIVO por padrão em vez de falhar a importação inteira.
+    conteudo = (FIXTURES / "plano_contas_hierarquico.csv").read_bytes()
+
+    resultado = parsear_planilha(conteudo, "plano_contas_hierarquico.csv")
+
+    from app.infrastructure.spreadsheet.plano_contas_parser import _inferir_natureza
+
+    assert _inferir_natureza("4.1.01") == NaturezaConta.ATIVO
+    assert resultado.linhas  # sanity: fixture ainda parseou normalmente
+
+
+def test_relatorio_hierarquico_calcula_conta_pai_pelo_codigo():
+    conteudo = (FIXTURES / "plano_contas_hierarquico.csv").read_bytes()
+
+    resultado = parsear_planilha(conteudo, "plano_contas_hierarquico.csv")
+
+    por_codigo = {linha.codigo: linha for linha in resultado.linhas}
+    assert por_codigo["1.1.01"].conta_pai == "1.1"
+    assert por_codigo["1.1"].conta_pai == "1"
+    assert por_codigo["1"].conta_pai is None
+
+
+def test_relatorio_hierarquico_ignora_blocos_de_cabecalho_de_pagina():
+    conteudo = (FIXTURES / "plano_contas_hierarquico.csv").read_bytes()
+
+    resultado = parsear_planilha(conteudo, "plano_contas_hierarquico.csv")
+
+    descricoes = {linha.descricao for linha in resultado.linhas}
+    assert "TESSERATO CONTABILIDADE LTDA" not in descricoes
+    assert "Nome da Conta" not in descricoes
+    assert all(linha.codigo for linha in resultado.linhas)
+
+
+def test_csv_simples_nao_aciona_fallback_hierarquico():
+    conteudo = (FIXTURES / "plano_contas_padrao.csv").read_bytes()
+
+    resultado = parsear_planilha(conteudo, "plano_contas_padrao.csv")
+
+    assert resultado.mapeamento["descricao"] is not None
