@@ -1,4 +1,4 @@
-export type StatusDocumento = "PENDENTE" | "PROCESSANDO" | "CONCLUIDO" | "ERRO";
+export type StatusDocumento = "PENDENTE" | "PROCESSANDO" | "CONCLUIDO" | "ERRO" | "DIVIDIDO";
 export type MetodoOcr = "PDF_NATIVO" | "PADDLEOCR" | "TESSERACT";
 export type StatusLote = "EM_ANDAMENTO" | "CONCLUIDO" | "CANCELADO" | "FALHOU";
 export type TipoDocumento = "PIX" | "TED" | "DOC" | "BOLETO" | "OUTRO";
@@ -14,6 +14,7 @@ export interface Documento {
   mensagem_erro: string | null;
   created_at: string;
   updated_at: string;
+  documento_origem_id: number | null;
 }
 
 export interface UploadItemResultado {
