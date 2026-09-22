@@ -59,6 +59,7 @@ class Documento:
     mensagem_erro: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    documento_origem_id: int | None = None
 
 
 @dataclass

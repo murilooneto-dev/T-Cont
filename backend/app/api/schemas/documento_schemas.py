@@ -16,6 +16,7 @@ class DocumentoOut(BaseModel):
     mensagem_erro: str | None
     created_at: datetime
     updated_at: datetime
+    documento_origem_id: int | None
 
     model_config = {"from_attributes": True}
 

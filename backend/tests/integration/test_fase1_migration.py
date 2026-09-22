@@ -18,6 +18,7 @@ def test_migration_adds_fase1_columns_and_table(tmp_path):
     assert documento_cols == {
         "id", "empresa_id", "nome_arquivo", "nome_exibicao", "caminho_arquivo",
         "extensao", "tamanho_bytes", "status", "mensagem_erro", "created_at", "updated_at",
+        "documento_origem_id",
     }
 
     ocr_cols = {c["name"] for c in inspector.get_columns("ocr_resultados")}

@@ -19,6 +19,7 @@ def _to_entity(model: DocumentoModel) -> Documento:
         mensagem_erro=model.mensagem_erro,
         created_at=model.created_at,
         updated_at=model.updated_at,
+        documento_origem_id=model.documento_origem_id,
     )
 
 
@@ -36,6 +37,7 @@ class SqlAlchemyDocumentoRepository(DocumentoRepository):
             tamanho_bytes=documento.tamanho_bytes,
             status=documento.status.value,
             mensagem_erro=documento.mensagem_erro,
+            documento_origem_id=documento.documento_origem_id,
         )
         self._session.add(model)
         self._session.flush()

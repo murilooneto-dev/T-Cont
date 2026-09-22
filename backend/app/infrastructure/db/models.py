@@ -95,6 +95,9 @@ class DocumentoModel(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
     )
+    documento_origem_id: Mapped[int | None] = mapped_column(
+        ForeignKey("documentos.id"), nullable=True, index=True
+    )
 
 
 class OcrResultadoModel(Base):

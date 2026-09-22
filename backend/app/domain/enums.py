@@ -14,6 +14,7 @@ class StatusDocumento(str, Enum):
     PROCESSANDO = "PROCESSANDO"
     CONCLUIDO = "CONCLUIDO"
     ERRO = "ERRO"
+    DIVIDIDO = "DIVIDIDO"
 
 
 class MetodoOcr(str, Enum):
