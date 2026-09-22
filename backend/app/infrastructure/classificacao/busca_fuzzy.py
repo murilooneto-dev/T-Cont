@@ -3,6 +3,18 @@ from datetime import datetime
 from rapidfuzz import fuzz
 
 
+def _sem_fuso(momento: datetime) -> datetime:
+    """Remove o timezone para permitir comparação.
+
+    `historico` mistura instâncias criadas nesta mesma sessão (timezone-aware,
+    default Python) com instâncias recém-lidas do SQLite (naive, já que o
+    SQLite não preserva timezone) — comparar as duas formas diretamente
+    levanta `TypeError`. Ambas representam o mesmo instante em UTC, então
+    remover o timezone antes de comparar preserva a ordenação corretamente.
+    """
+    return momento.replace(tzinfo=None) if momento.tzinfo is not None else momento
+
+
 def buscar_conta_por_similaridade(
     nome_alvo: str | None, historico: list[tuple[str, int, datetime]]
 ) -> tuple[int, float] | None:
@@ -16,7 +28,9 @@ def buscar_conta_por_similaridade(
             melhor = (conta_id, score, created_at)
             continue
         _, melhor_score, melhor_created_at = melhor
-        if score > melhor_score or (score == melhor_score and created_at > melhor_created_at):
+        if score > melhor_score or (
+            score == melhor_score and _sem_fuso(created_at) > _sem_fuso(melhor_created_at)
+        ):
             melhor = (conta_id, score, created_at)
 
     if melhor is None:

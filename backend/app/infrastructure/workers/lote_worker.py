@@ -14,11 +14,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.core.config import settings
-from app.domain.entities import Classificacao, Extracao, OcrResultado
+from app.domain.entities import Classificacao, Documento, Extracao, OcrResultado
 from app.domain.enums import StatusDocumento, StatusLote
 from app.infrastructure.ocr.pipeline import processar_documento
+from app.infrastructure.extracao.agrupamento import agrupar_paginas_em_comprovantes
 from app.infrastructure.extracao.pipeline import extrair_dados_documento
 from app.infrastructure.classificacao.pipeline import classificar_documento
+from app.infrastructure.ocr.recorte_pdf import recortar_paginas_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,69 @@ def _listar_contas_analiticas(conta_repo, plano_repo, empresa_id: int) -> list:
     for plano in plano_repo.listar_por_empresa(empresa_id):
         contas.extend(c for c in conta_repo.listar_por_plano(plano.id) if c.conta_analitica)
     return contas
+
+
+def _processar_comprovante(
+    documento,
+    texto: str,
+    metodo,
+    tempo_processamento_ms: int,
+    resultado_repo,
+    extracao_repo,
+    classificacao_repo,
+    regras: list,
+    contas_disponiveis: list,
+    historico_fuzzy: list[tuple[str, int, datetime]],
+) -> None:
+    """Grava OcrResultado + Extracao + Classificacao de um comprovante.
+
+    Compartilhado pelo caminho de 1 segmento (documento original) e pelo
+    caminho de 2+ segmentos (cada filho) — é o que garante que os dois
+    caminhos produzem exatamente o mesmo resultado para o mesmo texto.
+    """
+    resultado_repo.criar(
+        OcrResultado(
+            id=None, documento_id=documento.id,
+            texto_extraido=texto,
+            metodo=metodo,
+            tempo_processamento_ms=tempo_processamento_ms,
+        )
+    )
+    dados = extrair_dados_documento(texto)
+    extracao_criada = extracao_repo.criar(
+        Extracao(
+            id=None, documento_id=documento.id,
+            pagador_nome=dados.pagador_nome,
+            pagador_documento=dados.pagador_documento,
+            recebedor_nome=dados.recebedor_nome,
+            recebedor_documento=dados.recebedor_documento,
+            valor=dados.valor,
+            data_pagamento=dados.data_pagamento,
+            tipo_documento=dados.tipo_documento,
+            banco_nome=dados.banco_nome,
+        )
+    )
+
+    resultado_classificacao = classificar_documento(
+        extracao_criada, regras, contas_disponiveis, historico_fuzzy
+    )
+    if resultado_classificacao is not None:
+        nova_classificacao = classificacao_repo.criar(
+            Classificacao(
+                id=None,
+                empresa_id=documento.empresa_id,
+                documento_id=documento.id,
+                conta_id=resultado_classificacao.conta_id,
+                origem=resultado_classificacao.origem,
+                regra_id=resultado_classificacao.regra_id,
+                score_similaridade=resultado_classificacao.score_similaridade,
+            )
+        )
+        nome_para_historico = extracao_criada.recebedor_nome or extracao_criada.pagador_nome
+        if nome_para_historico is not None:
+            historico_fuzzy.append(
+                (nome_para_historico, resultado_classificacao.conta_id, nova_classificacao.created_at)
+            )
 
 
 def _marcar_lote_como_falhou(
@@ -153,6 +218,7 @@ def processar_lote_em_background(
 
         with ProcessPoolExecutor(max_workers=settings.ocr_max_workers) as pool:
             futuros_por_documento = {}
+            conteudo_por_documento: dict[int, bytes] = {}
             empresa_id_lote: int | None = None
             for documento_id in documento_ids:
                 # O cancelamento chega por outra sessão (a da request HTTP). Sem
@@ -172,6 +238,10 @@ def processar_lote_em_background(
                 if empresa_id_lote is None:
                     empresa_id_lote = documento.empresa_id
                 conteudo = storage.ler(documento.caminho_arquivo)
+                # Guardado para o recorte de páginas de um documento unificado
+                # (segunda etapa, depois que o OCR devolver o resultado) — sem
+                # isto teríamos que reler o arquivo do disco outra vez.
+                conteudo_por_documento[documento_id] = conteudo
                 futuro = pool.submit(processar_documento, conteudo, documento.extensao)
                 futuros_por_documento[documento_id] = futuro
 
@@ -227,58 +297,85 @@ def processar_lote_em_background(
                 if resultado_pipeline.erro:
                     documento.status = StatusDocumento.ERRO
                     documento.mensagem_erro = resultado_pipeline.erro
+                    documento_repo.atualizar(documento)
                 else:
-                    documento.status = StatusDocumento.CONCLUIDO
-                    resultado_repo.criar(
-                        OcrResultado(
-                            id=None, documento_id=documento_id,
-                            texto_extraido=resultado_pipeline.texto,
+                    segmentos = agrupar_paginas_em_comprovantes(resultado_pipeline.textos_por_pagina)
+
+                    if len(segmentos) <= 1:
+                        # Caminho idêntico ao comportamento anterior a esta
+                        # funcionalidade: junta todas as páginas (mesmo join
+                        # já usado por extrair_texto_nativo) e extrai uma vez.
+                        texto_completo = "\n".join(resultado_pipeline.textos_por_pagina)
+                        documento.status = StatusDocumento.CONCLUIDO
+                        documento_repo.atualizar(documento)
+                        _processar_comprovante(
+                            documento=documento,
+                            texto=texto_completo,
                             metodo=resultado_pipeline.metodo,
                             tempo_processamento_ms=resultado_pipeline.tempo_processamento_ms,
+                            resultado_repo=resultado_repo,
+                            extracao_repo=extracao_repo,
+                            classificacao_repo=classificacao_repo,
+                            regras=regras,
+                            contas_disponiveis=contas_disponiveis,
+                            historico_fuzzy=historico_fuzzy,
                         )
-                    )
-                    dados = extrair_dados_documento(resultado_pipeline.texto)
-                    extracao_criada = extracao_repo.criar(
-                        Extracao(
-                            id=None, documento_id=documento_id,
-                            pagador_nome=dados.pagador_nome,
-                            pagador_documento=dados.pagador_documento,
-                            recebedor_nome=dados.recebedor_nome,
-                            recebedor_documento=dados.recebedor_documento,
-                            valor=dados.valor,
-                            data_pagamento=dados.data_pagamento,
-                            tipo_documento=dados.tipo_documento,
-                            banco_nome=dados.banco_nome,
-                        )
-                    )
-
-                    resultado_classificacao = classificar_documento(
-                        extracao_criada, regras, contas_disponiveis, historico_fuzzy
-                    )
-                    if resultado_classificacao is not None:
-                        nova_classificacao = classificacao_repo.criar(
-                            Classificacao(
-                                id=None,
-                                empresa_id=documento.empresa_id,
-                                documento_id=documento_id,
-                                conta_id=resultado_classificacao.conta_id,
-                                origem=resultado_classificacao.origem,
-                                regra_id=resultado_classificacao.regra_id,
-                                score_similaridade=resultado_classificacao.score_similaridade,
+                    else:
+                        documento.status = StatusDocumento.DIVIDIDO
+                        documento_repo.atualizar(documento)
+                        conteudo_original = conteudo_por_documento.get(documento_id)
+                        for segmento in segmentos:
+                            pagina_inicio, pagina_fim = segmento[0] + 1, segmento[-1] + 1
+                            sufixo = (
+                                f" — pág. {pagina_inicio}"
+                                if pagina_inicio == pagina_fim
+                                else f" — pág. {pagina_inicio}-{pagina_fim}"
                             )
-                        )
-                        nome_para_historico = (
-                            extracao_criada.recebedor_nome or extracao_criada.pagador_nome
-                        )
-                        if nome_para_historico is not None:
-                            historico_fuzzy.append(
-                                (
-                                    nome_para_historico,
-                                    resultado_classificacao.conta_id,
-                                    nova_classificacao.created_at,
+                            nome_exibicao_filho = f"{documento.nome_exibicao}{sufixo}"
+                            bytes_recortados = recortar_paginas_pdf(conteudo_original, segmento)
+                            # Passa o nome ORIGINAL (sem o sufixo "— pág. N")
+                            # para a validação de extensão — o sufixo tem um
+                            # ponto em "pág.", que faria Path(...).suffix
+                            # devolver algo como ". 1-2" em vez de ".pdf" e
+                            # rejeitar o arquivo. O nome físico gravado em
+                            # disco é sempre gerado pelo storage (timestamp +
+                            # uuid), então isto não afeta o nome exibido.
+                            nome_fisico, caminho_relativo, extensao_filho = storage.salvar(
+                                documento.empresa_id, documento.nome_exibicao, bytes_recortados
+                            )
+                            filho = documento_repo.criar(
+                                Documento(
+                                    id=None,
+                                    empresa_id=documento.empresa_id,
+                                    nome_arquivo=nome_fisico,
+                                    nome_exibicao=nome_exibicao_filho,
+                                    caminho_arquivo=caminho_relativo,
+                                    extensao=extensao_filho,
+                                    tamanho_bytes=len(bytes_recortados),
+                                    status=StatusDocumento.CONCLUIDO,
+                                    documento_origem_id=documento.id,
                                 )
                             )
-                documento_repo.atualizar(documento)
+                            texto_segmento = "\n".join(
+                                resultado_pipeline.textos_por_pagina[i] for i in segmento
+                            )
+                            _processar_comprovante(
+                                documento=filho,
+                                texto=texto_segmento,
+                                metodo=resultado_pipeline.metodo,
+                                tempo_processamento_ms=resultado_pipeline.tempo_processamento_ms,
+                                resultado_repo=resultado_repo,
+                                extracao_repo=extracao_repo,
+                                classificacao_repo=classificacao_repo,
+                                regras=regras,
+                                contas_disponiveis=contas_disponiveis,
+                                historico_fuzzy=historico_fuzzy,
+                            )
+
+                # Libera memória do conteúdo do PDF assim que não for mais
+                # necessário — cobre tanto o caminho de 1-segmento (nunca foi
+                # lido) quanto o de N-segmentos (já foi usado).
+                conteudo_por_documento.pop(documento_id, None)
 
                 lote_atual = lote_repo.obter_por_id(lote_id)
                 if lote_atual is None:

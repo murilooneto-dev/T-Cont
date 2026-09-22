@@ -12,6 +12,8 @@ function corStatus(status: Documento["status"]): string {
       return "text-red-700";
     case "PROCESSANDO":
       return "text-amber-700";
+    case "DIVIDIDO":
+      return "text-blue-700";
     default:
       return "text-slate-500";
   }
@@ -55,6 +57,11 @@ export function DocumentoList({
             <span>{documento.nome_exibicao}</span>
             <div className="flex items-center gap-2">
               <span className={corStatus(documento.status)}>{documento.status}</span>
+              {documento.status === "DIVIDIDO" && (
+                <span className="text-xs text-slate-500">
+                  ({documentos.filter((d) => d.documento_origem_id === documento.id).length} comprovante(s))
+                </span>
+              )}
               {documento.status === "CONCLUIDO" && (
                 <button
                   onClick={() => verResultado(documento.id)}

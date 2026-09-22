@@ -29,7 +29,8 @@ def test_pdf_com_texto_usa_extracao_nativa():
     resultado = processar_documento(conteudo, ".pdf")
 
     assert resultado.metodo == MetodoOcr.PDF_NATIVO
-    assert "COMPROVANTE" in resultado.texto
+    assert len(resultado.textos_por_pagina) == 1
+    assert "COMPROVANTE" in resultado.textos_por_pagina[0]
     assert resultado.erro is None
 
 
@@ -43,7 +44,7 @@ def test_pdf_escaneado_usa_paddleocr_quando_disponivel():
         resultado = processar_documento(conteudo, ".pdf")
 
     assert resultado.metodo == MetodoOcr.PADDLEOCR
-    assert resultado.texto == "texto via paddle"
+    assert resultado.textos_por_pagina == ["texto via paddle"]
     assert resultado.erro is None
 
 
@@ -58,7 +59,7 @@ def test_pdf_escaneado_cai_para_tesseract_quando_paddle_falha():
         resultado = processar_documento(conteudo, ".pdf")
 
     assert resultado.metodo == MetodoOcr.TESSERACT
-    assert resultado.texto == "texto via tesseract"
+    assert resultado.textos_por_pagina == ["texto via tesseract"]
     assert resultado.erro is None
 
 
@@ -71,7 +72,38 @@ def test_imagem_direta_pula_extracao_nativa_e_vai_para_ocr():
         resultado = processar_documento(conteudo, ".png")
 
     assert resultado.metodo == MetodoOcr.PADDLEOCR
-    assert resultado.texto == "texto de imagem"
+    assert resultado.textos_por_pagina == ["texto de imagem"]
+
+
+def test_pdf_com_multiplas_paginas_de_texto_nativo_preserva_cada_pagina():
+    conteudo = fitz.open()
+    for texto in ("PAGINA UM COMPROVANTE", "PAGINA DOIS COMPROVANTE"):
+        pagina = conteudo.new_page()
+        pagina.insert_text((72, 72), texto)
+    conteudo_bytes = conteudo.tobytes()
+    conteudo.close()
+
+    resultado = processar_documento(conteudo_bytes, ".pdf")
+
+    assert resultado.metodo == MetodoOcr.PDF_NATIVO
+    assert len(resultado.textos_por_pagina) == 2
+    assert "PAGINA UM" in resultado.textos_por_pagina[0]
+    assert "PAGINA DOIS" in resultado.textos_por_pagina[1]
+
+
+def test_pdf_escaneado_com_multiplas_paginas_preserva_cada_pagina():
+    conteudo = _pdf_vazio()
+
+    with patch(
+        "app.infrastructure.ocr.pipeline.renderizar_paginas_pdf",
+        return_value=[b"fake-imagem-1", b"fake-imagem-2"],
+    ), patch("app.infrastructure.ocr.paddle_engine.PaddleOcrEngine") as MockPaddle:
+        MockPaddle.return_value.extrair_texto.side_effect = ["texto pagina 1", "texto pagina 2"]
+
+        resultado = processar_documento(conteudo, ".pdf")
+
+    assert resultado.metodo == MetodoOcr.PADDLEOCR
+    assert resultado.textos_por_pagina == ["texto pagina 1", "texto pagina 2"]
 
 
 def test_ambos_engines_falham_retorna_resultado_com_erro():
@@ -83,7 +115,7 @@ def test_ambos_engines_falham_retorna_resultado_com_erro():
         resultado = processar_documento(conteudo, ".pdf")
 
     assert resultado.erro is not None
-    assert resultado.texto == ""
+    assert resultado.textos_por_pagina == []
 
 
 def test_pdf_malformado_na_extracao_nativa_nao_propaga_excecao():
@@ -92,7 +124,7 @@ def test_pdf_malformado_na_extracao_nativa_nao_propaga_excecao():
     resultado = processar_documento(conteudo, ".pdf")
 
     assert resultado.erro is not None
-    assert resultado.texto == ""
+    assert resultado.textos_por_pagina == []
     assert resultado.metodo == MetodoOcr.TESSERACT
 
 
@@ -106,5 +138,5 @@ def test_falha_ao_renderizar_paginas_pdf_nao_propaga_excecao():
         resultado = processar_documento(conteudo, ".pdf")
 
     assert resultado.erro is not None
-    assert resultado.texto == ""
+    assert resultado.textos_por_pagina == []
     assert resultado.metodo == MetodoOcr.TESSERACT

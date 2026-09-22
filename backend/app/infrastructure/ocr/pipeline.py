@@ -8,14 +8,14 @@ from app.infrastructure.ocr.renderizador_pdf import renderizar_paginas_pdf
 
 @dataclass
 class ResultadoPipelineOcr:
-    texto: str
+    textos_por_pagina: list[str]
     metodo: MetodoOcr
     tempo_processamento_ms: int
     erro: str | None = None
 
 
-def _executar_engine_em_imagens(engine, imagens: list[bytes]) -> str:
-    return "\n".join(engine.extrair_texto(imagem) for imagem in imagens).strip()
+def _executar_engine_em_imagens(engine, imagens: list[bytes]) -> list[str]:
+    return [engine.extrair_texto(imagem) for imagem in imagens]
 
 
 def processar_documento(conteudo: bytes, extensao: str) -> ResultadoPipelineOcr:
@@ -23,11 +23,11 @@ def processar_documento(conteudo: bytes, extensao: str) -> ResultadoPipelineOcr:
 
     if extensao == ".pdf":
         try:
-            texto_nativo = extrair_texto_nativo(conteudo)
-            if texto_nativo is not None:
+            textos_nativos = extrair_texto_nativo(conteudo)
+            if textos_nativos is not None:
                 tempo_ms = int((time.monotonic() - inicio) * 1000)
                 return ResultadoPipelineOcr(
-                    texto=texto_nativo,
+                    textos_por_pagina=textos_nativos,
                     metodo=MetodoOcr.PDF_NATIVO,
                     tempo_processamento_ms=tempo_ms,
                 )
@@ -35,7 +35,7 @@ def processar_documento(conteudo: bytes, extensao: str) -> ResultadoPipelineOcr:
         except Exception as exc:
             tempo_ms = int((time.monotonic() - inicio) * 1000)
             return ResultadoPipelineOcr(
-                texto="",
+                textos_por_pagina=[],
                 metodo=MetodoOcr.TESSERACT,
                 tempo_processamento_ms=tempo_ms,
                 erro=f"Falha ao processar PDF: {exc}",
@@ -47,11 +47,12 @@ def processar_documento(conteudo: bytes, extensao: str) -> ResultadoPipelineOcr:
     try:
         from app.infrastructure.ocr.paddle_engine import PaddleOcrEngine
 
-        texto = _executar_engine_em_imagens(PaddleOcrEngine(), imagens)
-        if texto:
+        textos = _executar_engine_em_imagens(PaddleOcrEngine(), imagens)
+        if any(texto.strip() for texto in textos):
             tempo_ms = int((time.monotonic() - inicio) * 1000)
             return ResultadoPipelineOcr(
-                texto=texto, metodo=MetodoOcr.PADDLEOCR, tempo_processamento_ms=tempo_ms
+                textos_por_pagina=textos, metodo=MetodoOcr.PADDLEOCR,
+                tempo_processamento_ms=tempo_ms,
             )
         erro_paddle = "PaddleOCR não reconheceu texto."
     except Exception as exc:
@@ -60,19 +61,20 @@ def processar_documento(conteudo: bytes, extensao: str) -> ResultadoPipelineOcr:
     try:
         from app.infrastructure.ocr.tesseract_engine import TesseractOcrEngine
 
-        texto = _executar_engine_em_imagens(TesseractOcrEngine(), imagens)
+        textos = _executar_engine_em_imagens(TesseractOcrEngine(), imagens)
         tempo_ms = int((time.monotonic() - inicio) * 1000)
-        if texto:
+        if any(texto.strip() for texto in textos):
             return ResultadoPipelineOcr(
-                texto=texto, metodo=MetodoOcr.TESSERACT, tempo_processamento_ms=tempo_ms
+                textos_por_pagina=textos, metodo=MetodoOcr.TESSERACT,
+                tempo_processamento_ms=tempo_ms,
             )
         return ResultadoPipelineOcr(
-            texto="", metodo=MetodoOcr.TESSERACT, tempo_processamento_ms=tempo_ms,
+            textos_por_pagina=[], metodo=MetodoOcr.TESSERACT, tempo_processamento_ms=tempo_ms,
             erro=f"Nenhum engine de OCR reconheceu texto (PaddleOCR: {erro_paddle}).",
         )
     except Exception as exc:
         tempo_ms = int((time.monotonic() - inicio) * 1000)
         return ResultadoPipelineOcr(
-            texto="", metodo=MetodoOcr.TESSERACT, tempo_processamento_ms=tempo_ms,
+            textos_por_pagina=[], metodo=MetodoOcr.TESSERACT, tempo_processamento_ms=tempo_ms,
             erro=f"PaddleOCR: {erro_paddle}; Tesseract: {exc}",
         )

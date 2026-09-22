@@ -31,3 +31,15 @@ def test_empate_de_score_usa_candidato_mais_recente():
     ]
     conta_id, _ = buscar_conta_por_similaridade("ENERGISA", historico)
     assert conta_id == 20
+
+
+def test_empate_de_score_com_datas_naive_e_aware_misturadas_nao_estoura():
+    # Reproduz o histórico real de um lote: candidatos lidos do banco (SQLite
+    # não preserva timezone, viram naive) misturados com candidatos criados
+    # na mesma sessão (timezone-aware, default Python).
+    historico = [
+        ("ENERGISA", 10, datetime(2026, 1, 1)),
+        ("ENERGISA", 20, datetime(2026, 1, 5, tzinfo=timezone.utc)),
+    ]
+    conta_id, _ = buscar_conta_por_similaridade("ENERGISA", historico)
+    assert conta_id == 20
