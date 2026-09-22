@@ -5,6 +5,7 @@ import { DocumentoDropzone } from "../components/DocumentoDropzone";
 import { DocumentoList } from "../components/DocumentoList";
 import { EmpresaForm } from "../components/EmpresaForm";
 import { EmpresaList } from "../components/EmpresaList";
+import { ExportarPlanilha } from "../components/ExportarPlanilha";
 import { FilaRevisao } from "../components/FilaRevisao";
 import { PlanoContasImport } from "../components/PlanoContasImport";
 import { ProgressoLote } from "../components/ProgressoLote";
@@ -190,13 +191,16 @@ export function EmpresasPage() {
             empresaId={empresaSelecionadaId}
             onUploaded={(novos) => setDocumentos((atual) => [...atual, ...novos])}
           />
-          <button
-            onClick={handleProcessar}
-            disabled={documentos.every((d) => d.status !== "PENDENTE")}
-            className="self-start rounded bg-slate-800 px-3 py-1.5 text-sm text-white disabled:opacity-50"
-          >
-            Processar
-          </button>
+          <div className="flex items-start gap-2">
+            <button
+              onClick={handleProcessar}
+              disabled={documentos.every((d) => d.status !== "PENDENTE")}
+              className="rounded bg-slate-800 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+            >
+              Processar
+            </button>
+            <ExportarPlanilha key={empresaSelecionadaId} empresaId={empresaSelecionadaId} />
+          </div>
           {lote && <ProgressoLote lote={lote} onCancelar={handleCancelarLote} />}
           <div className="flex gap-2 border-b border-slate-200">
             <button
