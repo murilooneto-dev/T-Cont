@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # Ollama local (Fase 4 — classificação por IA). Assume que o servidor já está
     # rodando e o modelo já foi baixado (`ollama pull <modelo>`) manualmente.
     ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "llama3.2"
+    ollama_model: str = "llama3.2:1b"
     ollama_timeout_segundos: int = 15
 
 
