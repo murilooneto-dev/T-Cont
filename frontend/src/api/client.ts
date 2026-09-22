@@ -80,6 +80,19 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ documento_ids: documentoIds, conta_id: contaId }),
       }),
+    exportar: async (empresaId: number): Promise<{ blob: Blob; nomeArquivo: string }> => {
+      const response = await fetch(`${BASE_URL}/empresas/${empresaId}/documentos/exportar`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ detail: response.statusText }));
+        throw new Error(body.detail ?? "Erro na requisição");
+      }
+      const disposicao = response.headers.get("Content-Disposition") ?? "";
+      const correspondencia = /filename="([^"]+)"/.exec(disposicao);
+      return {
+        blob: await response.blob(),
+        nomeArquivo: correspondencia ? correspondencia[1] : "comprovantes.xlsx",
+      };
+    },
   },
   lotes: {
     processar: (empresaId: number) =>
