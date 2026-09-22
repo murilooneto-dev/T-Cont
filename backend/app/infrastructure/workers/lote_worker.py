@@ -372,6 +372,11 @@ def processar_lote_em_background(
                                 historico_fuzzy=historico_fuzzy,
                             )
 
+                # Libera memória do conteúdo do PDF assim que não for mais
+                # necessário — cobre tanto o caminho de 1-segmento (nunca foi
+                # lido) quanto o de N-segmentos (já foi usado).
+                conteudo_por_documento.pop(documento_id, None)
+
                 lote_atual = lote_repo.obter_por_id(lote_id)
                 if lote_atual is None:
                     logger.warning("Lote %s desapareceu durante o processamento.", lote_id)

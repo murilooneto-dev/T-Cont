@@ -77,3 +77,15 @@ def test_limiar_minimo_e_avaliado_sobre_o_total_nao_por_pagina():
     assert resultado is not None
     assert len(resultado) == 2
     assert resultado[0] == "AB"
+
+
+def test_rejeita_pdf_com_apenas_whitespace():
+    # Regressão: sem strip() antes de comparar com TAMANHO_MINIMO_TEXTO,
+    # espaços/quebras acumulam e passam o limiar incorretamente.
+    # Este PDF tem apenas whitespace (24 chars: 5 espaços + quebra, x4),
+    # passaria o limiar de 20 sem strip(), mas deve retornar None após strip().
+    conteudo = _pdf_com_texto("     \n     \n     \n     ")
+
+    resultado = extrair_texto_nativo(conteudo)
+
+    assert resultado is None
