@@ -109,6 +109,14 @@ class ContaEmUso(DomainError):
         )
 
 
+class RegraEmUso(DomainError):
+    def __init__(self, regra_id: int):
+        super().__init__(
+            f"A regra {regra_id} não pode ser apagada porque já foi usada em classificações "
+            "existentes. Desative a regra em vez de apagá-la, se não quiser mais que ela seja aplicada."
+        )
+
+
 class RegraDocumentoFiscalInvalido(DomainError):
     def __init__(self, valor: str):
         super().__init__(

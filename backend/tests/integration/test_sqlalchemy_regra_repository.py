@@ -1,9 +1,18 @@
 from decimal import Decimal
 
-from app.domain.entities import Conta, Empresa, PlanoContas, Regra
-from app.domain.enums import LadoRegra, NaturezaConta, TipoDocumento
+import pytest
+
+from app.core.exceptions import RegraEmUso
+from app.domain.entities import Classificacao, Conta, Documento, Empresa, PlanoContas, Regra
+from app.domain.enums import LadoRegra, NaturezaConta, OrigemClassificacao, TipoDocumento
+from app.infrastructure.repositories.sqlalchemy_classificacao_repository import (
+    SqlAlchemyClassificacaoRepository,
+)
 from app.infrastructure.repositories.sqlalchemy_conta_repository import (
     SqlAlchemyContaRepository,
+)
+from app.infrastructure.repositories.sqlalchemy_documento_repository import (
+    SqlAlchemyDocumentoRepository,
 )
 from app.infrastructure.repositories.sqlalchemy_empresa_repository import (
     SqlAlchemyEmpresaRepository,
@@ -113,3 +122,37 @@ def test_deletar_regra(db_session):
     db_session.commit()
 
     assert repo.obter_por_id(criada.id) is None
+
+
+def test_deletar_regra_em_uso_por_classificacao_levanta_regra_em_uso(db_session):
+    empresa, conta = _empresa_e_conta(db_session)
+    regra_repo = SqlAlchemyRegraRepository(db_session)
+    criada = regra_repo.criar(
+        Regra(
+            id=None, empresa_id=empresa.id, conta_id=conta.id, lado_alvo=None,
+            documento_fiscal=None, tipo_documento=TipoDocumento.PIX,
+            valor_min=None, valor_max=None, palavra_chave_nome=None,
+        )
+    )
+    db_session.commit()
+
+    documento = SqlAlchemyDocumentoRepository(db_session).criar(
+        Documento(
+            id=None, empresa_id=empresa.id, nome_arquivo="a.pdf", nome_exibicao="a.pdf",
+            caminho_arquivo="x/a.pdf", extensao=".pdf", tamanho_bytes=10,
+        )
+    )
+    db_session.commit()
+    SqlAlchemyClassificacaoRepository(db_session).criar(
+        Classificacao(
+            id=None, empresa_id=empresa.id, documento_id=documento.id, conta_id=conta.id,
+            origem=OrigemClassificacao.REGRA, regra_id=criada.id, score_similaridade=None,
+        )
+    )
+    db_session.commit()
+
+    with pytest.raises(RegraEmUso):
+        regra_repo.deletar(criada.id)
+
+    db_session.rollback()
+    assert regra_repo.obter_por_id(criada.id) is not None

@@ -1,6 +1,8 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.application.repositories import RegraRepository
+from app.core.exceptions import RegraEmUso
 from app.domain.entities import Regra
 from app.domain.enums import LadoRegra, TipoDocumento
 from app.infrastructure.db.models import RegraModel
@@ -67,4 +69,8 @@ class SqlAlchemyRegraRepository(RegraRepository):
         model = self._session.get(RegraModel, regra_id)
         if model is not None:
             self._session.delete(model)
-            self._session.flush()
+            try:
+                self._session.flush()
+            except IntegrityError as exc:
+                self._session.rollback()
+                raise RegraEmUso(regra_id) from exc
