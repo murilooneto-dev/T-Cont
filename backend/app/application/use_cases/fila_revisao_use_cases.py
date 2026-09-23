@@ -41,7 +41,11 @@ class ListarFilaRevisaoUseCase:
             if documento.status != StatusDocumento.CONCLUIDO:
                 continue
             classificacao = self._classificacao_repo.obter_por_documento_id(documento.id)
-            if classificacao is not None and classificacao.origem != OrigemClassificacao.FUZZY:
+            lancamento_incompleto = classificacao is not None and (
+                classificacao.direcao is None or classificacao.conta_bancaria_id is None
+            )
+            ja_e_fuzzy = classificacao is not None and classificacao.origem == OrigemClassificacao.FUZZY
+            if classificacao is not None and not ja_e_fuzzy and not lancamento_incompleto:
                 continue
 
             sugestao = None

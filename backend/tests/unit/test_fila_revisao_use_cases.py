@@ -2,7 +2,9 @@ import pytest
 
 from app.application.use_cases.fila_revisao_use_cases import ListarFilaRevisaoUseCase
 from app.domain.entities import Classificacao, Conta, Documento, Extracao, PlanoContas
-from app.domain.enums import NaturezaConta, OrigemClassificacao, StatusDocumento, TipoDocumento
+from app.domain.enums import (
+    DirecaoLancamento, NaturezaConta, OrigemClassificacao, StatusDocumento, TipoDocumento,
+)
 from tests.fakes import (
     FakeClassificacaoRepository,
     FakeContaRepository,
@@ -77,13 +79,13 @@ def test_documento_com_erro_nao_entra_na_fila():
 
 
 @pytest.mark.parametrize("origem", [OrigemClassificacao.REGRA, OrigemClassificacao.IA, OrigemClassificacao.MANUAL])
-def test_classificacao_por_regra_ia_ou_manual_nao_entra_na_fila(origem):
+def test_classificacao_por_regra_ia_ou_manual_com_lancamento_completo_nao_entra_na_fila(origem):
     ambiente = _ambiente()
     documento = _documento(ambiente)
     ambiente["classificacao_repo"].criar(
         Classificacao(
             id=None, empresa_id=1, documento_id=documento.id, conta_id=ambiente["conta"].id,
-            origem=origem,
+            origem=origem, conta_bancaria_id=99, direcao=DirecaoLancamento.PAGAMENTO,
         )
     )
 
@@ -129,6 +131,53 @@ def test_filtra_apenas_pela_empresa_informada():
             id=None, empresa_id=2, nome_arquivo="b.pdf", nome_exibicao="b.pdf",
             caminho_arquivo="x/b.pdf", extensao=".pdf", tamanho_bytes=10,
             status=StatusDocumento.CONCLUIDO,
+        )
+    )
+
+    itens = _use_case(ambiente).executar(1)
+
+    assert itens == []
+
+
+def test_classificacao_por_regra_com_direcao_e_conta_bancaria_faltando_entra_na_fila():
+    ambiente = _ambiente()
+    documento = _documento(ambiente)
+    ambiente["classificacao_repo"].criar(
+        Classificacao(
+            id=None, empresa_id=1, documento_id=documento.id, conta_id=ambiente["conta"].id,
+            origem=OrigemClassificacao.REGRA,
+        )
+    )
+
+    itens = _use_case(ambiente).executar(1)
+
+    assert len(itens) == 1
+    assert itens[0].documento.id == documento.id
+
+
+def test_classificacao_por_ia_com_conta_bancaria_resolvida_mas_direcao_faltando_entra_na_fila():
+    ambiente = _ambiente()
+    documento = _documento(ambiente)
+    ambiente["classificacao_repo"].criar(
+        Classificacao(
+            id=None, empresa_id=1, documento_id=documento.id, conta_id=ambiente["conta"].id,
+            origem=OrigemClassificacao.IA, conta_bancaria_id=99, direcao=None,
+        )
+    )
+
+    itens = _use_case(ambiente).executar(1)
+
+    assert len(itens) == 1
+
+
+def test_classificacao_manual_com_lancamento_completo_nao_entra_na_fila():
+    ambiente = _ambiente()
+    documento = _documento(ambiente)
+    ambiente["classificacao_repo"].criar(
+        Classificacao(
+            id=None, empresa_id=1, documento_id=documento.id, conta_id=ambiente["conta"].id,
+            origem=OrigemClassificacao.MANUAL, conta_bancaria_id=99,
+            direcao=DirecaoLancamento.PAGAMENTO,
         )
     )
 
