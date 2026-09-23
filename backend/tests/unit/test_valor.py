@@ -35,6 +35,11 @@ def test_valor_total_sem_prefixo_rs_e_reconhecido():
     assert extrair_valor(texto) == Decimal("92.62")
 
 
+def test_valor_cobrado_sem_prefixo_rs_e_reconhecido():
+    texto = "VALOR DO DOCUMENTO                      2.606,62\nVALOR COBRADO                           2.606,62"
+    assert extrair_valor(texto) == Decimal("2606.62")
+
+
 def test_prefere_valor_com_rs_quando_ambos_existem():
     texto = "Valor Total: R$ 150,00\nOutro Total                                92,62"
     assert extrair_valor(texto) == Decimal("150.00")
