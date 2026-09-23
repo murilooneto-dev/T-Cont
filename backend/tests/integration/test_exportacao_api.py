@@ -21,7 +21,8 @@ from app.main import app
 CABECALHO = [
     "Arquivo", "Data do pagamento", "Valor", "Tipo", "Pagador (nome)",
     "Pagador (CPF/CNPJ)", "Recebedor (nome)", "Recebedor (CPF/CNPJ)", "Banco",
-    "Conta (código)", "Conta (descrição)", "Origem",
+    "Débito (código)", "Débito (descrição)", "Crédito (código)", "Crédito (descrição)",
+    "Origem",
 ]
 
 
@@ -143,7 +144,11 @@ def test_documento_processado_e_classificado_aparece_com_todos_os_dados(client, 
         files={
             "arquivos": (
                 "comprovante.pdf",
-                _pdf("Favorecido: Energisa Distribuidora\nCNPJ: 11.222.333/0001-99\nValor: R$ 150,00"),
+                _pdf(
+                    "Pagador: Tesserato\nCNPJ: 12.345.678/0001-99\n"
+                    "Favorecido: Energisa Distribuidora\nCNPJ: 11.222.333/0001-99\n"
+                    "Valor: R$ 150,00"
+                ),
                 "application/pdf",
             )
         },
@@ -158,8 +163,14 @@ def test_documento_processado_e_classificado_aparece_com_todos_os_dados(client, 
     assert linha["Arquivo"] == "comprovante.pdf"
     assert linha["Valor"] == 150
     assert linha["Recebedor (CPF/CNPJ)"] == "11222333000199"
-    assert linha["Conta (código)"] == "1"
-    assert linha["Conta (descrição)"] == "Energia"
+    # Documento é pago pela empresa (pagador CNPJ == CNPJ da empresa) para a
+    # conta de contrapartida (Energia): direção PAGAMENTO, então a
+    # contrapartida entra no débito. Não há conta bancária cadastrada, então
+    # o crédito fica vazio.
+    assert linha["Débito (código)"] == "1"
+    assert linha["Débito (descrição)"] == "Energia"
+    assert linha["Crédito (código)"] is None
+    assert linha["Crédito (descrição)"] is None
     assert linha["Origem"] == "REGRA"
 
 

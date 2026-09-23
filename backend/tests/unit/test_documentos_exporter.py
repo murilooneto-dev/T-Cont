@@ -14,7 +14,8 @@ from app.infrastructure.spreadsheet.documentos_exporter import (
 CABECALHO = [
     "Arquivo", "Data do pagamento", "Valor", "Tipo", "Pagador (nome)",
     "Pagador (CPF/CNPJ)", "Recebedor (nome)", "Recebedor (CPF/CNPJ)", "Banco",
-    "Conta (código)", "Conta (descrição)", "Origem",
+    "Débito (código)", "Débito (descrição)", "Crédito (código)", "Crédito (descrição)",
+    "Origem",
 ]
 
 
@@ -24,7 +25,8 @@ def _linha(**sobrescritas) -> LinhaExportacao:
         valor=Decimal("150.00"), tipo="PIX", pagador_nome="Tesserato",
         pagador_documento="01234567000199", recebedor_nome="Energisa",
         recebedor_documento="11222333000199", banco_nome="Itau",
-        conta_codigo="1", conta_descricao="Energia", origem="REGRA",
+        debito_codigo="1", debito_descricao="Energia",
+        credito_codigo="2", credito_descricao="Banco Itau", origem="REGRA",
     )
     campos.update(sobrescritas)
     return LinhaExportacao(**campos)
@@ -60,7 +62,8 @@ def test_linha_de_dados_na_ordem_das_colunas():
 
     assert valores == [
         "comprovante.pdf", datetime(2026, 9, 18), 150, "PIX", "Tesserato",
-        "01234567000199", "Energisa", "11222333000199", "Itau", "1", "Energia", "REGRA",
+        "01234567000199", "Energisa", "11222333000199", "Itau", "1", "Energia",
+        "2", "Banco Itau", "REGRA",
     ]
 
 
@@ -77,13 +80,14 @@ def test_campos_none_viram_celula_vazia():
     linha = _linha(
         data_pagamento=None, valor=None, tipo=None, pagador_nome=None,
         pagador_documento=None, recebedor_nome=None, recebedor_documento=None,
-        banco_nome=None, conta_codigo=None, conta_descricao=None, origem=None,
+        banco_nome=None, debito_codigo=None, debito_descricao=None,
+        credito_codigo=None, credito_descricao=None, origem=None,
     )
     aba = _abrir(gerar_planilha_documentos([linha]))["Documentos"]
 
     valores = [celula.value for celula in aba[2]]
 
-    assert valores == ["comprovante.pdf"] + [None] * 11
+    assert valores == ["comprovante.pdf"] + [None] * 13
 
 
 @pytest.mark.parametrize("texto", ["=1+1", "+cmd", "-2+3", "@SUM(A1)", "#N/A"])
