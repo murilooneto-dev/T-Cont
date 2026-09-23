@@ -44,3 +44,7 @@ class LocalFileStorageService(ArmazenamentoArquivos):
 
     def ler(self, caminho_relativo: str) -> bytes:
         return (self._storage_root / caminho_relativo).read_bytes()
+
+    def apagar(self, caminho_relativo: str) -> None:
+        caminho_absoluto = self._storage_root / caminho_relativo
+        caminho_absoluto.unlink(missing_ok=True)

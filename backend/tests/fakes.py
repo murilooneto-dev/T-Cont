@@ -117,6 +117,9 @@ class FakeDocumentoRepository(DocumentoRepository):
         self._items[documento.id] = documento
         return documento
 
+    def deletar(self, documento_id: int) -> None:
+        self._items.pop(documento_id, None)
+
 
 class FakeOcrResultadoRepository(OcrResultadoRepository):
     def __init__(self):
@@ -131,6 +134,11 @@ class FakeOcrResultadoRepository(OcrResultadoRepository):
 
     def obter_por_documento_id(self, documento_id: int) -> OcrResultado | None:
         return next((r for r in self._items.values() if r.documento_id == documento_id), None)
+
+    def deletar_por_documento_id(self, documento_id: int) -> None:
+        self._items = {
+            k: v for k, v in self._items.items() if v.documento_id != documento_id
+        }
 
 
 class FakeLoteProcessamentoRepository(LoteProcessamentoRepository):
@@ -168,6 +176,9 @@ class FakeArmazenamentoArquivos(ArmazenamentoArquivos):
     def ler(self, caminho_relativo: str) -> bytes:
         return self._arquivos[caminho_relativo]
 
+    def apagar(self, caminho_relativo: str) -> None:
+        self._arquivos.pop(caminho_relativo, None)
+
 
 class FakeExtracaoRepository(ExtracaoRepository):
     def __init__(self):
@@ -182,6 +193,11 @@ class FakeExtracaoRepository(ExtracaoRepository):
 
     def obter_por_documento_id(self, documento_id: int) -> Extracao | None:
         return next((e for e in self._items.values() if e.documento_id == documento_id), None)
+
+    def deletar_por_documento_id(self, documento_id: int) -> None:
+        self._items = {
+            k: v for k, v in self._items.items() if v.documento_id != documento_id
+        }
 
 
 class FakeRegraRepository(RegraRepository):
@@ -232,6 +248,11 @@ class FakeClassificacaoRepository(ClassificacaoRepository):
         self._items[classificacao.id] = classificacao
         return classificacao
 
+    def deletar_por_documento_id(self, documento_id: int) -> None:
+        self._items = {
+            k: v for k, v in self._items.items() if v.documento_id != documento_id
+        }
+
 
 class FakeAprendizadoRepository(AprendizadoRepository):
     def __init__(self):
@@ -246,3 +267,8 @@ class FakeAprendizadoRepository(AprendizadoRepository):
 
     def listar_por_empresa(self, empresa_id: int) -> list[Aprendizado]:
         return [a for a in self._items.values() if a.empresa_id == empresa_id]
+
+    def deletar_por_documento_id(self, documento_id: int) -> None:
+        self._items = {
+            k: v for k, v in self._items.items() if v.documento_id != documento_id
+        }

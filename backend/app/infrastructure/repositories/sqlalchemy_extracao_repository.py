@@ -49,3 +49,7 @@ class SqlAlchemyExtracaoRepository(ExtracaoRepository):
             .first()
         )
         return _to_entity(model) if model else None
+
+    def deletar_por_documento_id(self, documento_id: int) -> None:
+        self._session.query(ExtracaoModel).filter_by(documento_id=documento_id).delete()
+        self._session.flush()

@@ -108,6 +108,18 @@ export function FilaRevisao({
     }
   }
 
+  async function limparFila() {
+    if (!window.confirm(`Apagar de vez os ${itens.length} documento(s) da Fila de Revisão? Não tem como desfazer.`)) {
+      return;
+    }
+    try {
+      await api.documentos.limparFilaRevisao(empresaId);
+      carregarFila();
+    } catch (err) {
+      console.error("Erro ao limpar a fila de revisão:", err);
+    }
+  }
+
   async function aplicarLote() {
     if (contaLoteId === "" || selecionados.size === 0) return;
     try {
@@ -155,6 +167,14 @@ export function FilaRevisao({
 
   return (
     <div className="flex flex-col gap-2" onKeyDown={handleKeyDown} tabIndex={0}>
+      <div className="flex justify-end">
+        <button
+          onClick={limparFila}
+          className="rounded bg-red-100 px-2 py-1 text-xs text-red-700"
+        >
+          Limpar Fila
+        </button>
+      </div>
       {selecionados.size > 0 && (
         <div className="flex items-center gap-2 rounded border border-slate-300 bg-slate-100 p-2 text-xs">
           <span>{selecionados.size} selecionado(s)</span>

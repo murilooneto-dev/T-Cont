@@ -11,6 +11,10 @@ class ArmazenamentoArquivos(ABC):
     @abstractmethod
     def ler(self, caminho_relativo: str) -> bytes: ...
 
+    @abstractmethod
+    def apagar(self, caminho_relativo: str) -> None:
+        """Remove o arquivo físico. Não lança exceção se ele já não existir."""
+
 
 class OcrEngine(ABC):
     @abstractmethod

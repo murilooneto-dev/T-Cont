@@ -130,6 +130,20 @@ export function EmpresasPage() {
     setLote(cancelado);
   }
 
+  async function handleLimparProcessados() {
+    if (empresaSelecionadaId === null) return;
+    if (
+      !window.confirm(
+        "Apagar de vez todos os documentos já processados desta empresa (concluídos, com erro ou divididos)? Não tem como desfazer.",
+      )
+    ) {
+      return;
+    }
+    await api.documentos.limparProcessados(empresaSelecionadaId);
+    const documentosAtualizados = await api.documentos.list(empresaSelecionadaId);
+    setDocumentos(documentosAtualizados);
+  }
+
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 p-8">
       <h1 className="text-2xl font-bold text-slate-800">
@@ -200,6 +214,13 @@ export function EmpresasPage() {
               Processar
             </button>
             <ExportarPlanilha key={empresaSelecionadaId} empresaId={empresaSelecionadaId} />
+            <button
+              onClick={handleLimparProcessados}
+              disabled={documentos.every((d) => !["CONCLUIDO", "ERRO", "DIVIDIDO"].includes(d.status))}
+              className="rounded bg-red-100 px-3 py-1.5 text-sm text-red-700 disabled:opacity-50"
+            >
+              Limpar documentos processados
+            </button>
           </div>
           {lote && <ProgressoLote lote={lote} onCancelar={handleCancelarLote} />}
           <div className="flex gap-2 border-b border-slate-200">

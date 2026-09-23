@@ -54,6 +54,10 @@ class SqlAlchemyClassificacaoRepository(ClassificacaoRepository):
         )
         return [_to_entity(m) for m in models]
 
+    def deletar_por_documento_id(self, documento_id: int) -> None:
+        self._session.query(ClassificacaoModel).filter_by(documento_id=documento_id).delete()
+        self._session.flush()
+
     def atualizar(self, classificacao: Classificacao) -> Classificacao:
         model = self._session.get(ClassificacaoModel, classificacao.id)
         model.conta_id = classificacao.conta_id

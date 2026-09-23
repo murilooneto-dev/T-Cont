@@ -67,3 +67,9 @@ class SqlAlchemyDocumentoRepository(DocumentoRepository):
         model.nome_exibicao = documento.nome_exibicao
         self._session.flush()
         return _to_entity(model)
+
+    def deletar(self, documento_id: int) -> None:
+        model = self._session.get(DocumentoModel, documento_id)
+        if model is not None:
+            self._session.delete(model)
+            self._session.flush()

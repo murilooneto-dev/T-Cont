@@ -27,6 +27,10 @@ from app.application.use_cases.documento_use_cases import (
     UploadarDocumentosUseCase,
 )
 from app.application.use_cases.fila_revisao_use_cases import ListarFilaRevisaoUseCase
+from app.application.use_cases.limpeza_use_cases import (
+    LimparDocumentosProcessadosUseCase,
+    LimparFilaRevisaoUseCase,
+)
 from app.application.use_cases.exportacao_use_cases import ExportarDocumentosUseCase
 from app.infrastructure.spreadsheet.documentos_exporter import (
     XLSX_MEDIA_TYPE,
@@ -173,6 +177,42 @@ def listar_fila_revisao(empresa_id: int, db: Session = Depends(get_db)):
         )
         for item in itens
     ]
+
+
+@router.delete("/empresas/{empresa_id}/documentos/fila-revisao")
+def limpar_fila_revisao(
+    empresa_id: int,
+    db: Session = Depends(get_db),
+    storage: LocalFileStorageService = Depends(get_storage),
+):
+    documento_repo = SqlAlchemyDocumentoRepository(db)
+    extracao_repo = SqlAlchemyExtracaoRepository(db)
+    classificacao_repo = SqlAlchemyClassificacaoRepository(db)
+    conta_repo = SqlAlchemyContaRepository(db)
+    aprendizado_repo = SqlAlchemyAprendizadoRepository(db)
+    ocr_repo = SqlAlchemyOcrResultadoRepository(db)
+    quantidade = LimparFilaRevisaoUseCase(
+        documento_repo, extracao_repo, classificacao_repo, conta_repo, aprendizado_repo,
+        ocr_repo, storage,
+    ).executar(empresa_id)
+    return {"documentos_apagados": quantidade}
+
+
+@router.delete("/empresas/{empresa_id}/documentos/processados")
+def limpar_documentos_processados(
+    empresa_id: int,
+    db: Session = Depends(get_db),
+    storage: LocalFileStorageService = Depends(get_storage),
+):
+    documento_repo = SqlAlchemyDocumentoRepository(db)
+    ocr_repo = SqlAlchemyOcrResultadoRepository(db)
+    extracao_repo = SqlAlchemyExtracaoRepository(db)
+    classificacao_repo = SqlAlchemyClassificacaoRepository(db)
+    aprendizado_repo = SqlAlchemyAprendizadoRepository(db)
+    quantidade = LimparDocumentosProcessadosUseCase(
+        documento_repo, ocr_repo, extracao_repo, classificacao_repo, aprendizado_repo, storage,
+    ).executar(empresa_id)
+    return {"documentos_apagados": quantidade}
 
 
 @router.get("/empresas/{empresa_id}/documentos/exportar")
