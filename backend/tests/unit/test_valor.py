@@ -28,3 +28,13 @@ def test_usa_primeiro_valor_quando_nenhum_e_total():
 def test_nao_confunde_subtotal_com_total():
     texto = "Subtotal: R$ 50,00\nDesconto: R$ 5,00\nTotal: R$ 45,00"
     assert extrair_valor(texto) == Decimal("45.00")
+
+
+def test_valor_total_sem_prefixo_rs_e_reconhecido():
+    texto = "Data do pagamento                     17/08/2026\nValor Total                                92,62"
+    assert extrair_valor(texto) == Decimal("92.62")
+
+
+def test_prefere_valor_com_rs_quando_ambos_existem():
+    texto = "Valor Total: R$ 150,00\nOutro Total                                92,62"
+    assert extrair_valor(texto) == Decimal("150.00")
