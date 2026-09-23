@@ -44,6 +44,11 @@ class DocumentoNaoEncontrado(DomainError):
         super().__init__(f"Documento {documento_id} não encontrado.")
 
 
+class ClassificacaoNaoEncontrada(DomainError):
+    def __init__(self, documento_id: int):
+        super().__init__(f"Documento {documento_id} ainda não tem uma classificação para corrigir.")
+
+
 class LoteNaoEncontrado(DomainError):
     def __init__(self, lote_id: int):
         super().__init__(f"Lote de processamento {lote_id} não encontrado.")
