@@ -1,7 +1,7 @@
 from app.domain.entities import (
     Conta, Documento, Empresa, PlanoContas,
 )
-from app.domain.enums import NaturezaConta, OrigemClassificacao
+from app.domain.enums import DirecaoLancamento, NaturezaConta, OrigemClassificacao
 from app.domain.entities import Classificacao
 from app.infrastructure.repositories.sqlalchemy_classificacao_repository import (
     SqlAlchemyClassificacaoRepository,
@@ -105,3 +105,61 @@ def test_atualizar_classificacao(db_session):
     atualizada = repo.obter_por_documento_id(documento.id)
     assert atualizada.origem == OrigemClassificacao.MANUAL
     assert atualizada.score_similaridade is None
+
+
+def test_criar_classificacao_com_conta_bancaria_e_direcao(db_session):
+    empresa, conta, documento = _empresa_conta_documento(db_session)
+    conta_bancaria = SqlAlchemyContaRepository(db_session).criar(
+        Conta(
+            id=None, plano_conta_id=conta.plano_conta_id, codigo="1.1.01.002.00001",
+            descricao="Banco do Brasil S.A.", natureza=NaturezaConta.ATIVO,
+            conta_analitica=True,
+        )
+    )
+    db_session.commit()
+    repo = SqlAlchemyClassificacaoRepository(db_session)
+
+    criada = repo.criar(
+        Classificacao(
+            id=None, empresa_id=empresa.id, documento_id=documento.id, conta_id=conta.id,
+            origem=OrigemClassificacao.REGRA, regra_id=None, score_similaridade=None,
+            conta_bancaria_id=conta_bancaria.id, direcao=DirecaoLancamento.PAGAMENTO,
+        )
+    )
+    db_session.commit()
+
+    encontrada = repo.obter_por_documento_id(documento.id)
+    assert encontrada.conta_bancaria_id == conta_bancaria.id
+    assert encontrada.direcao == DirecaoLancamento.PAGAMENTO
+
+
+def test_atualizar_preserva_conta_bancaria_e_direcao_quando_so_conta_id_muda(db_session):
+    empresa, conta, documento = _empresa_conta_documento(db_session)
+    conta_bancaria = SqlAlchemyContaRepository(db_session).criar(
+        Conta(
+            id=None, plano_conta_id=conta.plano_conta_id, codigo="1.1.01.002.00001",
+            descricao="Banco do Brasil S.A.", natureza=NaturezaConta.ATIVO,
+            conta_analitica=True,
+        )
+    )
+    db_session.commit()
+    repo = SqlAlchemyClassificacaoRepository(db_session)
+    criada = repo.criar(
+        Classificacao(
+            id=None, empresa_id=empresa.id, documento_id=documento.id, conta_id=conta.id,
+            origem=OrigemClassificacao.FUZZY, score_similaridade=0.7,
+            conta_bancaria_id=conta_bancaria.id, direcao=DirecaoLancamento.RECEBIMENTO,
+        )
+    )
+    db_session.commit()
+
+    criada.conta_id = conta.id
+    criada.origem = OrigemClassificacao.MANUAL
+    criada.score_similaridade = None
+    repo.atualizar(criada)
+    db_session.commit()
+
+    atualizada = repo.obter_por_documento_id(documento.id)
+    assert atualizada.origem == OrigemClassificacao.MANUAL
+    assert atualizada.conta_bancaria_id == conta_bancaria.id
+    assert atualizada.direcao == DirecaoLancamento.RECEBIMENTO

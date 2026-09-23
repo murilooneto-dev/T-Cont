@@ -183,6 +183,10 @@ class ClassificacaoModel(Base):
     origem: Mapped[str] = mapped_column(String(20), nullable=False)
     regra_id: Mapped[int | None] = mapped_column(ForeignKey("regras.id"), nullable=True)
     score_similaridade: Mapped[float | None] = mapped_column(Float, nullable=True)
+    conta_bancaria_id: Mapped[int | None] = mapped_column(
+        ForeignKey("contas.id"), nullable=True, index=True
+    )
+    direcao: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, nullable=False
     )

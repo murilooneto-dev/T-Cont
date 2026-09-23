@@ -24,7 +24,7 @@ def test_migration_cria_regras_e_classificacoes_reais(tmp_path):
     classificacao_cols = {c["name"] for c in inspector.get_columns("classificacoes")}
     assert classificacao_cols == {
         "id", "empresa_id", "documento_id", "conta_id", "origem",
-        "regra_id", "score_similaridade", "created_at",
+        "regra_id", "score_similaridade", "conta_bancaria_id", "direcao", "created_at",
     }
 
     regra_indexes = {idx["name"] for idx in inspector.get_indexes("regras")}
