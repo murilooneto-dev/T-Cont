@@ -8,9 +8,13 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_db, get_storage
+from app.domain.enums import DirecaoLancamento
 from app.infrastructure.db.base import Base
 from app.infrastructure.db import models  # noqa: F401
 from app.infrastructure.db.session import get_engine
+from app.infrastructure.repositories.sqlalchemy_classificacao_repository import (
+    SqlAlchemyClassificacaoRepository,
+)
 from app.infrastructure.storage.file_storage import LocalFileStorageService
 from app.infrastructure.workers.lote_worker import processar_lote_em_background
 from app.main import app
@@ -40,7 +44,12 @@ def ambiente_com_worker(tmp_path, monkeypatch):
         "app.api.routers.lotes_router.processar_lote_em_background",
         functools.partial(processar_lote_em_background, session_factory=TestSessionLocal),
     )
-    yield TestClient(app)
+    client = TestClient(app)
+    # Exposto para testes que precisam inspecionar dados persistidos que a
+    # API ainda não expõe (ex.: `Classificacao.direcao`/`conta_bancaria_id`,
+    # cujo schema de saída é responsabilidade de uma tarefa posterior).
+    client.session_factory = TestSessionLocal
+    yield client
     app.dependency_overrides.clear()
 
 
@@ -175,3 +184,129 @@ def test_lote_conta_arquivo_original_uma_vez_mesmo_quando_vira_varios_comprovant
 
     assert status_final["total_documentos"] == 1
     assert status_final["documentos_processados"] == 1
+
+
+def _empresa_e_plano_com_banco(client, cnpj: str, nome_banco: str) -> tuple[int, int, int]:
+    empresa_id = client.post(
+        "/empresas", json={"razao_social": "Teste", "nome_fantasia": None, "cnpj": cnpj}
+    ).json()["id"]
+    plano_id = client.post(
+        f"/empresas/{empresa_id}/planos-contas", json={"nome": "Plano"}
+    ).json()["id"]
+    conta_despesa_id = client.post(
+        f"/planos-contas/{plano_id}/contas",
+        json={
+            "codigo": "3.2.01", "descricao": "Despesa Teste", "natureza": "DESPESA",
+            "conta_analitica": True, "conta_pai_id": None,
+        },
+    ).json()["id"]
+    conta_banco_id = client.post(
+        f"/planos-contas/{plano_id}/contas",
+        json={
+            "codigo": "1.1.01.002.00001", "descricao": nome_banco, "natureza": "ATIVO",
+            "conta_analitica": True, "conta_pai_id": None,
+        },
+    ).json()["id"]
+    return empresa_id, conta_despesa_id, conta_banco_id
+
+
+def _obter_classificacao_persistida(client, documento_id: int):
+    # A API (`/documentos/{id}/resultado`) ainda não expõe `direcao`/
+    # `conta_bancaria_id` no `ClassificacaoOut` — isso é responsabilidade de
+    # uma tarefa posterior do plano (schema de saída). Esta tarefa só cuida
+    # da persistência feita pelo worker, então inspecionamos o dado
+    # diretamente via repositório, usando a mesma fábrica de sessão do
+    # ambiente de teste.
+    session = client.session_factory()
+    try:
+        repo = SqlAlchemyClassificacaoRepository(session)
+        return repo.obter_por_documento_id(documento_id)
+    finally:
+        session.close()
+
+
+def test_pagamento_resolve_direcao_e_conta_bancaria(ambiente_com_worker):
+    client = ambiente_com_worker
+    cnpj_empresa = "12345678000199"
+    empresa_id, conta_despesa_id, conta_banco_id = _empresa_e_plano_com_banco(
+        client, cnpj_empresa, "Banco do Brasil S.A."
+    )
+    client.post(
+        f"/empresas/{empresa_id}/regras",
+        json={
+            "conta_id": conta_despesa_id, "lado_alvo": "RECEBEDOR",
+            "documento_fiscal": "99988877000166", "tipo_documento": None,
+            "valor_min": None, "valor_max": None, "palavra_chave_nome": None,
+        },
+    )
+    conteudo = _pdf_com_paginas(
+        "CNPJ DO PAGADOR: 12.345.678/0001-99\nFavorecido: Fornecedor Teste\n"
+        "CNPJ DO RECEBEDOR: 99.988.877/0001-66\nBanco: Banco do Brasil S.A.\n"
+        "Valor: R$ 150,00"
+    )
+    documento_id = client.post(
+        f"/empresas/{empresa_id}/documentos",
+        files={"arquivos": ("comprovante.pdf", conteudo, "application/pdf")},
+    ).json()[0]["documento"]["id"]
+
+    status_final = _processar_e_aguardar(client, empresa_id)
+    assert status_final["status"] == "CONCLUIDO"
+
+    classificacao = _obter_classificacao_persistida(client, documento_id)
+    assert classificacao is not None
+    assert classificacao.direcao == DirecaoLancamento.PAGAMENTO
+    assert classificacao.conta_id == conta_despesa_id
+    assert classificacao.conta_bancaria_id == conta_banco_id
+
+
+def test_banco_nao_identificado_deixa_conta_bancaria_nao_resolvida(ambiente_com_worker):
+    client = ambiente_com_worker
+    cnpj_empresa = "12345678000199"
+    empresa_id, conta_despesa_id, _ = _empresa_e_plano_com_banco(
+        client, cnpj_empresa, "Banco do Brasil S.A."
+    )
+    client.post(
+        f"/empresas/{empresa_id}/regras",
+        json={
+            "conta_id": conta_despesa_id, "lado_alvo": "RECEBEDOR",
+            "documento_fiscal": "99988877000166", "tipo_documento": None,
+            "valor_min": None, "valor_max": None, "palavra_chave_nome": None,
+        },
+    )
+    conteudo = _pdf_com_paginas(
+        "CNPJ DO PAGADOR: 12.345.678/0001-99\nFavorecido: Fornecedor Teste\n"
+        "CNPJ DO RECEBEDOR: 99.988.877/0001-66\nValor: R$ 150,00"
+    )
+    documento_id = client.post(
+        f"/empresas/{empresa_id}/documentos",
+        files={"arquivos": ("comprovante.pdf", conteudo, "application/pdf")},
+    ).json()[0]["documento"]["id"]
+
+    status_final = _processar_e_aguardar(client, empresa_id)
+    assert status_final["status"] == "CONCLUIDO"
+
+    classificacao = _obter_classificacao_persistida(client, documento_id)
+    assert classificacao is not None
+    assert classificacao.direcao == DirecaoLancamento.PAGAMENTO
+    assert classificacao.conta_id == conta_despesa_id
+    assert classificacao.conta_bancaria_id is None
+
+
+def test_pdf_de_uma_pagina_continua_sem_classificacao_bancaria_quando_nao_ha_cnpj_da_empresa(
+    ambiente_com_worker,
+):
+    # Regressão do caminho de 1 segmento: quando o documento não tem nenhum
+    # documento fiscal batendo com a empresa, direção fica None e a conta
+    # bancária fica None — sem quebrar o processamento.
+    client = ambiente_com_worker
+    empresa_id, conta_despesa_id, _ = _empresa_e_plano_com_banco(
+        client, "12345678000199", "Banco do Brasil S.A."
+    )
+    conteudo = _pdf_com_paginas("Texto sem nenhum CNPJ reconhecivel\nValor: R$ 10,00")
+    documento_id = client.post(
+        f"/empresas/{empresa_id}/documentos",
+        files={"arquivos": ("comprovante.pdf", conteudo, "application/pdf")},
+    ).json()[0]["documento"]["id"]
+
+    status_final = _processar_e_aguardar(client, empresa_id)
+    assert status_final["status"] == "CONCLUIDO"

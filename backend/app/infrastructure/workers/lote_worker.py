@@ -15,11 +15,15 @@ from pathlib import Path
 
 from app.core.config import settings
 from app.domain.entities import Classificacao, Documento, Extracao, OcrResultado
-from app.domain.enums import StatusDocumento, StatusLote
+from app.domain.enums import DirecaoLancamento, NaturezaConta, StatusDocumento, StatusLote
 from app.infrastructure.ocr.pipeline import processar_documento
 from app.infrastructure.extracao.agrupamento import agrupar_paginas_em_comprovantes
 from app.infrastructure.extracao.pipeline import extrair_dados_documento
 from app.infrastructure.classificacao.pipeline import classificar_documento
+from app.infrastructure.classificacao.lancamento_contabil import (
+    resolver_conta_bancaria,
+    resolver_direcao,
+)
 from app.infrastructure.ocr.recorte_pdf import recortar_paginas_pdf
 
 logger = logging.getLogger(__name__)
@@ -64,6 +68,7 @@ def _processar_comprovante(
     regras: list,
     contas_disponiveis: list,
     historico_fuzzy: list[tuple[str, int, datetime]],
+    empresa_cnpj: str,
 ) -> None:
     """Grava OcrResultado + Extracao + Classificacao de um comprovante.
 
@@ -98,6 +103,13 @@ def _processar_comprovante(
         extracao_criada, regras, contas_disponiveis, historico_fuzzy
     )
     if resultado_classificacao is not None:
+        direcao = resolver_direcao(empresa_cnpj, extracao_criada)
+        conta_bancaria_id = None
+        if extracao_criada.banco_nome is not None:
+            contas_bancarias = [
+                conta for conta in contas_disponiveis if conta.natureza == NaturezaConta.ATIVO
+            ]
+            conta_bancaria_id = resolver_conta_bancaria(extracao_criada.banco_nome, contas_bancarias)
         nova_classificacao = classificacao_repo.criar(
             Classificacao(
                 id=None,
@@ -107,6 +119,8 @@ def _processar_comprovante(
                 origem=resultado_classificacao.origem,
                 regra_id=resultado_classificacao.regra_id,
                 score_similaridade=resultado_classificacao.score_similaridade,
+                conta_bancaria_id=conta_bancaria_id,
+                direcao=direcao,
             )
         )
         nome_para_historico = extracao_criada.recebedor_nome or extracao_criada.pagador_nome
@@ -181,6 +195,9 @@ def processar_lote_em_background(
     from app.infrastructure.repositories.sqlalchemy_documento_repository import (
         SqlAlchemyDocumentoRepository,
     )
+    from app.infrastructure.repositories.sqlalchemy_empresa_repository import (
+        SqlAlchemyEmpresaRepository,
+    )
     from app.infrastructure.repositories.sqlalchemy_lote_processamento_repository import (
         SqlAlchemyLoteProcessamentoRepository,
     )
@@ -207,6 +224,7 @@ def processar_lote_em_background(
     session = session_factory()
     try:
         documento_repo = SqlAlchemyDocumentoRepository(session)
+        empresa_repo = SqlAlchemyEmpresaRepository(session)
         resultado_repo = SqlAlchemyOcrResultadoRepository(session)
         extracao_repo = SqlAlchemyExtracaoRepository(session)
         regra_repo = SqlAlchemyRegraRepository(session)
@@ -276,6 +294,19 @@ def processar_lote_em_background(
                         )
                     )
 
+            # CNPJ da empresa resolvido uma vez por lote (não por documento) —
+            # usado por resolver_direcao dentro de _processar_comprovante.
+            # String vazia como padrão em vez de None: resolver_direcao espera
+            # um str, e uma string vazia nunca bate com um CNPJ extraído de
+            # verdade, então o comportamento seguro (direção não resolvida)
+            # acontece naturalmente sem precisar de um `if` extra dentro de
+            # _processar_comprovante.
+            empresa_cnpj = ""
+            if empresa_id_lote is not None:
+                empresa = empresa_repo.obter_por_id(empresa_id_lote)
+                if empresa is not None:
+                    empresa_cnpj = empresa.cnpj
+
             # Itera na ordem de SUBMISSÃO (não na ordem de conclusão do OCR via
             # as_completed) para que a classificação de um lote seja
             # determinística e reprodutível — um documento nunca deveria deixar
@@ -319,6 +350,7 @@ def processar_lote_em_background(
                             regras=regras,
                             contas_disponiveis=contas_disponiveis,
                             historico_fuzzy=historico_fuzzy,
+                            empresa_cnpj=empresa_cnpj,
                         )
                     else:
                         documento.status = StatusDocumento.DIVIDIDO
@@ -370,6 +402,7 @@ def processar_lote_em_background(
                                 regras=regras,
                                 contas_disponiveis=contas_disponiveis,
                                 historico_fuzzy=historico_fuzzy,
+                                empresa_cnpj=empresa_cnpj,
                             )
 
                 # Libera memória do conteúdo do PDF assim que não for mais
