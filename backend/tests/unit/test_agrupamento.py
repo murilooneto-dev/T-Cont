@@ -1,3 +1,5 @@
+import pytest
+
 from app.infrastructure.extracao.agrupamento import agrupar_paginas_em_comprovantes
 
 _COMPLETA = "Favorecido: Empresa Teste\nCNPJ: 11.222.333/0001-99\nValor: R$ 100,00"
@@ -36,3 +38,45 @@ def test_muitas_paginas_completas_seguidas_um_segmento_por_pagina():
     textos = [_COMPLETA] * 5
     resultado = agrupar_paginas_em_comprovantes(textos)
     assert resultado == [[0], [1], [2], [3], [4]]
+
+
+_BOLETO_SEM_CNPJ_COM_BARRAS = (
+    "COMPROVANTE DE PAGAMENTO\nConvenio VIVO FIXO/BRASIL\n"
+    "Codigo de Barras   84670000000-9   92620082089-8\n"
+    "Data do pagamento   17/08/2026\nValor Total   R$ 92,62"
+)
+_BOLETO_SEM_CNPJ_SEM_BARRAS = (
+    "COMPROVANTE DE PAGAMENTO\nData do pagamento   17/08/2026\nValor Total   R$ 92,62"
+)
+
+
+def test_pagina_com_codigo_barras_mas_sem_cnpj_inicia_novo_segmento():
+    resultado = agrupar_paginas_em_comprovantes([_COMPLETA, _BOLETO_SEM_CNPJ_COM_BARRAS])
+    assert resultado == [[0], [1]]
+
+
+def test_pagina_sem_codigo_barras_e_sem_cnpj_continua_fundida():
+    resultado = agrupar_paginas_em_comprovantes([_COMPLETA, _BOLETO_SEM_CNPJ_SEM_BARRAS])
+    assert resultado == [[0, 1]]
+
+
+@pytest.mark.parametrize(
+    "grafia",
+    [
+        "Codigo de Barras   84670000000-9",
+        "Código de Barras   84670000000-9",
+        "CODIGO DE BARRAS   84670000000-9",
+        "Cod. de Barras   84670000000-9",
+        "cod. barras   84670000000-9",
+    ],
+)
+def test_variacoes_de_grafia_do_codigo_de_barras_sao_reconhecidas(grafia):
+    texto = f"COMPROVANTE DE PAGAMENTO\n{grafia}\nData do pagamento   17/08/2026\nValor Total   R$ 92,62"
+    resultado = agrupar_paginas_em_comprovantes([_COMPLETA, texto])
+    assert resultado == [[0], [1]]
+
+
+def test_pagina_com_codigo_barras_mas_sem_valor_nao_inicia_segmento():
+    texto_sem_valor = "COMPROVANTE DE PAGAMENTO\nCodigo de Barras   84670000000-9"
+    resultado = agrupar_paginas_em_comprovantes([_COMPLETA, texto_sem_valor])
+    assert resultado == [[0, 1]]
