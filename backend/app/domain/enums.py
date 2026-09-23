@@ -48,3 +48,8 @@ class OrigemClassificacao(str, Enum):
     FUZZY = "FUZZY"
     IA = "IA"
     MANUAL = "MANUAL"
+
+
+class DirecaoLancamento(str, Enum):
+    PAGAMENTO = "PAGAMENTO"
+    RECEBIMENTO = "RECEBIMENTO"

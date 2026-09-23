@@ -3,8 +3,8 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from app.domain.enums import (
-    LadoRegra, MetodoOcr, NaturezaConta, OrigemClassificacao, StatusDocumento, StatusLote,
-    TipoDocumento,
+    DirecaoLancamento, LadoRegra, MetodoOcr, NaturezaConta, OrigemClassificacao, StatusDocumento,
+    StatusLote, TipoDocumento,
 )
 
 
@@ -122,6 +122,8 @@ class Classificacao:
     origem: OrigemClassificacao
     regra_id: int | None = None
     score_similaridade: float | None = None
+    conta_bancaria_id: int | None = None
+    direcao: DirecaoLancamento | None = None
     created_at: datetime | None = None
 
 

@@ -6,14 +6,34 @@ import type { Conta } from "../types/planoContas";
 
 function paraClassificacaoView(item: ItemFilaRevisao): Classificacao | null {
   if (item.classificacao_sugerida === null) return null;
+  const sugestao = item.classificacao_sugerida;
   return {
-    conta_id: item.classificacao_sugerida.conta_id,
-    conta_codigo: item.classificacao_sugerida.conta_codigo,
-    conta_descricao: item.classificacao_sugerida.conta_descricao,
-    origem: "FUZZY",
+    conta_id: sugestao.conta_id,
+    conta_codigo: sugestao.conta_codigo,
+    conta_descricao: sugestao.conta_descricao,
+    origem: sugestao.origem ?? "FUZZY",
     regra_id: null,
-    score_similaridade: item.classificacao_sugerida.score_similaridade,
+    score_similaridade: sugestao.score_similaridade,
+    direcao: sugestao.direcao,
+    debito_codigo: sugestao.debito_codigo,
+    debito_descricao: sugestao.debito_descricao,
+    credito_codigo: sugestao.credito_codigo,
+    credito_descricao: sugestao.credito_descricao,
   };
+}
+
+/** O botão/fluxo de "Confirmar sugestão fuzzy" só faz sentido quando a
+ * origem da classificação é realmente FUZZY (ou quando não há classificação
+ * nenhuma ainda). Para REGRA/IA/MANUAL, a contrapartida já está correta — o
+ * que falta é só completar o lançamento (banco/direção), que é resolvido
+ * pelo select de conta bancária em CorrecaoClassificacao, não por este botão.
+ */
+function ehSugestaoFuzzy(item: ItemFilaRevisao): boolean {
+  return (
+    item.classificacao_sugerida !== null &&
+    (item.classificacao_sugerida.origem === null ||
+      item.classificacao_sugerida.origem === "FUZZY")
+  );
 }
 
 export function FilaRevisao({
@@ -74,6 +94,20 @@ export function FilaRevisao({
     }
   }
 
+  async function confirmarContaBancaria(documentoId: number, contaBancariaId: number) {
+    try {
+      await api.documentos.corrigirContaBancaria(documentoId, contaBancariaId);
+      const errosRestantes = { ...errosLote };
+      delete errosRestantes[documentoId];
+      carregarFila(undefined, errosRestantes);
+    } catch (err) {
+      setErrosLote((atual) => ({
+        ...atual,
+        [documentoId]: (err as Error).message,
+      }));
+    }
+  }
+
   async function aplicarLote() {
     if (contaLoteId === "" || selecionados.size === 0) return;
     try {
@@ -107,7 +141,7 @@ export function FilaRevisao({
       setFocoIndex((atual) => Math.max(atual - 1, 0));
     } else if (e.key === "Enter" || e.key === "c" || e.key === "C") {
       const item = itens[focoIndex];
-      if (item && item.classificacao_sugerida) {
+      if (item && item.classificacao_sugerida && ehSugestaoFuzzy(item)) {
         confirmar(item.documento.id, item.classificacao_sugerida.conta_id);
       }
     }
@@ -172,9 +206,13 @@ export function FilaRevisao({
                   classificacao={paraClassificacaoView(item)}
                   contas={contas}
                   onCorrigir={(contaId) => confirmar(item.documento.id, contaId)}
+                  onCorrigirContaBancaria={(contaBancariaId) =>
+                    confirmarContaBancaria(item.documento.id, contaBancariaId)
+                  }
+                  mostrarSelecaoContrapartida={ehSugestaoFuzzy(item)}
                 />
               </div>
-              {item.classificacao_sugerida && (
+              {item.classificacao_sugerida && ehSugestaoFuzzy(item) && (
                 <button
                   onClick={() => confirmar(item.documento.id, item.classificacao_sugerida!.conta_id)}
                   className="rounded bg-green-700 px-2 py-1 text-white"

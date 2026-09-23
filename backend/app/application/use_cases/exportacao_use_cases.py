@@ -11,6 +11,7 @@ from app.application.repositories import (
 )
 from app.core.exceptions import EmpresaNaoEncontrada
 from app.domain.enums import StatusDocumento
+from app.infrastructure.classificacao.lancamento_contabil import resolver_lados_lancamento
 
 
 @dataclass
@@ -24,8 +25,10 @@ class LinhaExportacao:
     recebedor_nome: str | None
     recebedor_documento: str | None
     banco_nome: str | None
-    conta_codigo: str | None
-    conta_descricao: str | None
+    debito_codigo: str | None
+    debito_descricao: str | None
+    credito_codigo: str | None
+    credito_descricao: str | None
     origem: str | None
 
 
@@ -65,11 +68,18 @@ class ExportarDocumentosUseCase:
                 continue
             extracao = self._extracao_repo.obter_por_documento_id(documento.id)
             classificacao = self._classificacao_repo.obter_por_documento_id(documento.id)
-            conta = (
-                self._conta_repo.obter_por_id(classificacao.conta_id)
-                if classificacao is not None
-                else None
-            )
+            conta_debito = conta_credito = None
+            if classificacao is not None:
+                conta_contrapartida = self._conta_repo.obter_por_id(classificacao.conta_id)
+                conta_bancaria = (
+                    self._conta_repo.obter_por_id(classificacao.conta_bancaria_id)
+                    if classificacao.conta_bancaria_id is not None
+                    else None
+                )
+                if conta_contrapartida is not None:
+                    conta_debito, conta_credito = resolver_lados_lancamento(
+                        classificacao.direcao, conta_contrapartida, conta_bancaria
+                    )
             linhas.append(
                 LinhaExportacao(
                     arquivo=documento.nome_exibicao,
@@ -83,8 +93,10 @@ class ExportarDocumentosUseCase:
                         _texto(extracao.recebedor_documento) if extracao else None
                     ),
                     banco_nome=_texto(extracao.banco_nome) if extracao else None,
-                    conta_codigo=conta.codigo if conta else None,
-                    conta_descricao=conta.descricao if conta else None,
+                    debito_codigo=conta_debito.codigo if conta_debito else None,
+                    debito_descricao=conta_debito.descricao if conta_debito else None,
+                    credito_codigo=conta_credito.codigo if conta_credito else None,
+                    credito_descricao=conta_credito.descricao if conta_credito else None,
                     origem=classificacao.origem.value if classificacao else None,
                 )
             )

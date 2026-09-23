@@ -10,6 +10,7 @@ from app.api.schemas.documento_schemas import (
     CorrigirClassificacaoIn,
     CorrigirClassificacaoLoteIn,
     CorrigirClassificacaoLoteOut,
+    CorrigirContaBancariaIn,
     DocumentoOut,
     DocumentoResultadoOut,
     ExtracaoOut,
@@ -19,6 +20,7 @@ from app.api.schemas.documento_schemas import (
     UploadItemOut,
 )
 from app.application.dto import ArquivoUploadDTO
+from app.application.use_cases.conta_bancaria_use_cases import CorrigirContaBancariaUseCase
 from app.application.use_cases.documento_use_cases import (
     ListarDocumentosUseCase,
     ObterResultadoUseCase,
@@ -32,6 +34,7 @@ from app.infrastructure.spreadsheet.documentos_exporter import (
 )
 from app.core.config import settings
 from app.core.exceptions import (
+    ClassificacaoNaoEncontrada,
     ContaNaoAnalitica,
     ContaNaoEncontrada,
     ContaNaoPertenceAEmpresa,
@@ -157,6 +160,12 @@ def listar_fila_revisao(empresa_id: int, db: Session = Depends(get_db)):
                     conta_codigo=item.sugestao.conta_codigo,
                     conta_descricao=item.sugestao.conta_descricao,
                     score_similaridade=item.sugestao.score_similaridade,
+                    origem=item.sugestao.origem,
+                    direcao=item.sugestao.direcao,
+                    debito_codigo=item.sugestao.debito_codigo,
+                    debito_descricao=item.sugestao.debito_descricao,
+                    credito_codigo=item.sugestao.credito_codigo,
+                    credito_descricao=item.sugestao.credito_descricao,
                 )
                 if item.sugestao
                 else None
@@ -214,7 +223,12 @@ def obter_resultado(documento_id: int, db: Session = Depends(get_db)):
     if classificacao:
         conta = conta_repo.obter_por_id(classificacao.conta_id)
         if conta is not None:
-            classificacao_out = ClassificacaoOut.from_classificacao(classificacao, conta)
+            conta_bancaria = (
+                conta_repo.obter_por_id(classificacao.conta_bancaria_id)
+                if classificacao.conta_bancaria_id is not None
+                else None
+            )
+            classificacao_out = ClassificacaoOut.from_classificacao(classificacao, conta, conta_bancaria)
     return DocumentoResultadoOut(
         documento=documento, resultado=resultado_out, extracao=extracao_out,
         classificacao=classificacao_out,
@@ -232,9 +246,10 @@ def corrigir_classificacao_em_lote(
     aprendizado_repo = SqlAlchemyAprendizadoRepository(db)
     conta_repo = SqlAlchemyContaRepository(db)
     plano_repo = SqlAlchemyPlanoContasRepository(db)
+    empresa_repo = SqlAlchemyEmpresaRepository(db)
     corrigir_use_case = CorrigirClassificacaoUseCase(
         documento_repo, extracao_repo, classificacao_repo, regra_repo,
-        aprendizado_repo, conta_repo, plano_repo,
+        aprendizado_repo, conta_repo, plano_repo, empresa_repo,
     )
     resultados = CorrigirClassificacaoEmLoteUseCase(corrigir_use_case).executar(
         payload.documento_ids, payload.conta_id
@@ -244,7 +259,14 @@ def corrigir_classificacao_em_lote(
         classificacao_out = None
         if resultado.classificacao is not None:
             conta = conta_repo.obter_por_id(resultado.classificacao.conta_id)
-            classificacao_out = ClassificacaoOut.from_classificacao(resultado.classificacao, conta)
+            conta_bancaria = (
+                conta_repo.obter_por_id(resultado.classificacao.conta_bancaria_id)
+                if resultado.classificacao.conta_bancaria_id is not None
+                else None
+            )
+            classificacao_out = ClassificacaoOut.from_classificacao(
+                resultado.classificacao, conta, conta_bancaria
+            )
         resultados_out.append(
             ResultadoCorrecaoLoteItemOut(
                 documento_id=resultado.documento_id, sucesso=resultado.sucesso,
@@ -265,10 +287,11 @@ def corrigir_classificacao(
     aprendizado_repo = SqlAlchemyAprendizadoRepository(db)
     conta_repo = SqlAlchemyContaRepository(db)
     plano_repo = SqlAlchemyPlanoContasRepository(db)
+    empresa_repo = SqlAlchemyEmpresaRepository(db)
     try:
         classificacao = CorrigirClassificacaoUseCase(
             documento_repo, extracao_repo, classificacao_repo, regra_repo,
-            aprendizado_repo, conta_repo, plano_repo,
+            aprendizado_repo, conta_repo, plano_repo, empresa_repo,
         ).executar(documento_id, payload.conta_id)
     except DocumentoNaoEncontrado as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -277,4 +300,36 @@ def corrigir_classificacao(
     except (ContaNaoPertenceAEmpresa, ContaNaoAnalitica) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     conta = conta_repo.obter_por_id(classificacao.conta_id)
-    return ClassificacaoOut.from_classificacao(classificacao, conta)
+    conta_bancaria = (
+        conta_repo.obter_por_id(classificacao.conta_bancaria_id)
+        if classificacao.conta_bancaria_id is not None
+        else None
+    )
+    return ClassificacaoOut.from_classificacao(classificacao, conta, conta_bancaria)
+
+
+@router.patch(
+    "/documentos/{documento_id}/classificacao/conta-bancaria", response_model=ClassificacaoOut
+)
+def corrigir_conta_bancaria(
+    documento_id: int, payload: CorrigirContaBancariaIn, db: Session = Depends(get_db)
+):
+    documento_repo = SqlAlchemyDocumentoRepository(db)
+    classificacao_repo = SqlAlchemyClassificacaoRepository(db)
+    conta_repo = SqlAlchemyContaRepository(db)
+    plano_repo = SqlAlchemyPlanoContasRepository(db)
+    try:
+        classificacao = CorrigirContaBancariaUseCase(
+            documento_repo, classificacao_repo, conta_repo, plano_repo
+        ).executar(documento_id, payload.conta_bancaria_id)
+    except DocumentoNaoEncontrado as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ClassificacaoNaoEncontrada as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ContaNaoEncontrada as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ContaNaoPertenceAEmpresa, ContaNaoAnalitica) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    conta = conta_repo.obter_por_id(classificacao.conta_id)
+    conta_bancaria = conta_repo.obter_por_id(classificacao.conta_bancaria_id)
+    return ClassificacaoOut.from_classificacao(classificacao, conta, conta_bancaria)

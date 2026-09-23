@@ -19,8 +19,10 @@ _COLUNAS = [
     ("Recebedor (nome)", 28),
     ("Recebedor (CPF/CNPJ)", 20),
     ("Banco", 22),
-    ("Conta (código)", 14),
-    ("Conta (descrição)", 30),
+    ("Débito (código)", 14),
+    ("Débito (descrição)", 30),
+    ("Crédito (código)", 14),
+    ("Crédito (descrição)", 30),
     ("Origem", 10),
 ]
 _COLUNA_DATA = 2
@@ -41,8 +43,9 @@ def gerar_planilha_documentos(linhas: list[LinhaExportacao]) -> bytes:
         valores = [
             linha.arquivo, linha.data_pagamento, linha.valor, linha.tipo,
             linha.pagador_nome, linha.pagador_documento, linha.recebedor_nome,
-            linha.recebedor_documento, linha.banco_nome, linha.conta_codigo,
-            linha.conta_descricao, linha.origem,
+            linha.recebedor_documento, linha.banco_nome, linha.debito_codigo,
+            linha.debito_descricao, linha.credito_codigo, linha.credito_descricao,
+            linha.origem,
         ]
         for numero_coluna, valor in enumerate(valores, start=1):
             celula = aba.cell(row=numero_linha, column=numero_coluna, value=valor)

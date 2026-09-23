@@ -2,7 +2,13 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.domain.enums import MetodoOcr, OrigemClassificacao, StatusDocumento, TipoDocumento
+from app.domain.enums import (
+    DirecaoLancamento,
+    MetodoOcr,
+    OrigemClassificacao,
+    StatusDocumento,
+    TipoDocumento,
+)
 
 
 class DocumentoOut(BaseModel):
@@ -71,9 +77,19 @@ class ClassificacaoOut(BaseModel):
     origem: OrigemClassificacao
     regra_id: int | None
     score_similaridade: float | None
+    direcao: DirecaoLancamento | None
+    debito_codigo: str | None
+    debito_descricao: str | None
+    credito_codigo: str | None
+    credito_descricao: str | None
 
     @classmethod
-    def from_classificacao(cls, classificacao, conta) -> "ClassificacaoOut":
+    def from_classificacao(cls, classificacao, conta, conta_bancaria=None) -> "ClassificacaoOut":
+        from app.infrastructure.classificacao.lancamento_contabil import resolver_lados_lancamento
+
+        conta_debito, conta_credito = resolver_lados_lancamento(
+            classificacao.direcao, conta, conta_bancaria
+        )
         return cls(
             conta_id=classificacao.conta_id,
             conta_codigo=conta.codigo,
@@ -81,7 +97,16 @@ class ClassificacaoOut(BaseModel):
             origem=classificacao.origem,
             regra_id=classificacao.regra_id,
             score_similaridade=classificacao.score_similaridade,
+            direcao=classificacao.direcao,
+            debito_codigo=conta_debito.codigo if conta_debito else None,
+            debito_descricao=conta_debito.descricao if conta_debito else None,
+            credito_codigo=conta_credito.codigo if conta_credito else None,
+            credito_descricao=conta_credito.descricao if conta_credito else None,
         )
+
+
+class CorrigirContaBancariaIn(BaseModel):
+    conta_bancaria_id: int
 
 
 class ClassificacaoSugeridaOut(BaseModel):
@@ -89,6 +114,12 @@ class ClassificacaoSugeridaOut(BaseModel):
     conta_codigo: str
     conta_descricao: str
     score_similaridade: float | None
+    origem: OrigemClassificacao | None = None
+    direcao: DirecaoLancamento | None = None
+    debito_codigo: str | None = None
+    debito_descricao: str | None = None
+    credito_codigo: str | None = None
+    credito_descricao: str | None = None
 
 
 class ItemFilaRevisaoOut(BaseModel):

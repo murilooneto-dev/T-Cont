@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.application.repositories import ClassificacaoRepository
 from app.domain.entities import Classificacao
-from app.domain.enums import OrigemClassificacao
+from app.domain.enums import DirecaoLancamento, OrigemClassificacao
 from app.infrastructure.db.models import ClassificacaoModel
 
 
@@ -15,6 +15,8 @@ def _to_entity(model: ClassificacaoModel) -> Classificacao:
         origem=OrigemClassificacao(model.origem),
         regra_id=model.regra_id,
         score_similaridade=model.score_similaridade,
+        conta_bancaria_id=model.conta_bancaria_id,
+        direcao=DirecaoLancamento(model.direcao) if model.direcao is not None else None,
         created_at=model.created_at,
     )
 
@@ -31,6 +33,8 @@ class SqlAlchemyClassificacaoRepository(ClassificacaoRepository):
             origem=classificacao.origem.value,
             regra_id=classificacao.regra_id,
             score_similaridade=classificacao.score_similaridade,
+            conta_bancaria_id=classificacao.conta_bancaria_id,
+            direcao=classificacao.direcao.value if classificacao.direcao is not None else None,
         )
         self._session.add(model)
         self._session.flush()
@@ -56,5 +60,7 @@ class SqlAlchemyClassificacaoRepository(ClassificacaoRepository):
         model.origem = classificacao.origem.value
         model.regra_id = classificacao.regra_id
         model.score_similaridade = classificacao.score_similaridade
+        model.conta_bancaria_id = classificacao.conta_bancaria_id
+        model.direcao = classificacao.direcao.value if classificacao.direcao is not None else None
         self._session.flush()
         return _to_entity(model)

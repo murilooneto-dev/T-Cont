@@ -73,6 +73,11 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ conta_id: contaId }),
       }),
+    corrigirContaBancaria: (documentoId: number, contaBancariaId: number) =>
+      request<Classificacao>(`/documentos/${documentoId}/classificacao/conta-bancaria`, {
+        method: "PATCH",
+        body: JSON.stringify({ conta_bancaria_id: contaBancariaId }),
+      }),
     filaRevisao: (empresaId: number) =>
       request<ItemFilaRevisao[]>(`/empresas/${empresaId}/documentos/fila-revisao`),
     corrigirClassificacaoLote: (documentoIds: number[], contaId: number) =>

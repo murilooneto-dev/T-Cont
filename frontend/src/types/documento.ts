@@ -42,6 +42,8 @@ export interface Extracao {
 
 export type OrigemClassificacao = "REGRA" | "FUZZY" | "IA" | "MANUAL";
 
+export type DirecaoLancamento = "PAGAMENTO" | "RECEBIMENTO";
+
 export interface Classificacao {
   conta_id: number;
   conta_codigo: string;
@@ -49,6 +51,11 @@ export interface Classificacao {
   origem: OrigemClassificacao;
   regra_id: number | null;
   score_similaridade: number | null;
+  direcao: DirecaoLancamento | null;
+  debito_codigo: string | null;
+  debito_descricao: string | null;
+  credito_codigo: string | null;
+  credito_descricao: string | null;
 }
 
 export interface DocumentoResultado {
@@ -73,6 +80,12 @@ export interface ClassificacaoSugerida {
   conta_codigo: string;
   conta_descricao: string;
   score_similaridade: number | null;
+  origem: OrigemClassificacao | null;
+  direcao: DirecaoLancamento | null;
+  debito_codigo: string | null;
+  debito_descricao: string | null;
+  credito_codigo: string | null;
+  credito_descricao: string | null;
 }
 
 export interface ItemFilaRevisao {

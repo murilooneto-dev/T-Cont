@@ -299,6 +299,71 @@ def test_corrigir_classificacao_cria_regra_e_atualiza_documento(client, empresa_
     assert resultado["classificacao"]["conta_id"] == conta_id
 
 
+def test_corrigir_conta_bancaria_atualiza_apenas_esse_campo(ambiente_com_worker):
+    """Depois de corrigir só a conta bancária de uma classificação com direção
+    já conhecida, o lançamento fica completo (débito/crédito resolvidos)."""
+    from sqlalchemy import text
+
+    client = ambiente_com_worker.client
+    session_factory = ambiente_com_worker.session_factory
+
+    empresa_id = client.post(
+        "/empresas", json={"razao_social": "Tesserato", "nome_fantasia": None, "cnpj": "12345678000199"}
+    ).json()["id"]
+    plano_id = client.post(
+        f"/empresas/{empresa_id}/planos-contas", json={"nome": "Plano"}
+    ).json()["id"]
+    conta_contrapartida_id = client.post(
+        f"/planos-contas/{plano_id}/contas",
+        json={
+            "codigo": "1", "descricao": "Energia", "natureza": "DESPESA",
+            "conta_analitica": True, "conta_pai_id": None,
+        },
+    ).json()["id"]
+    conta_banco_id = client.post(
+        f"/planos-contas/{plano_id}/contas",
+        json={
+            "codigo": "2", "descricao": "Banco do Brasil", "natureza": "ATIVO",
+            "conta_analitica": True, "conta_pai_id": None,
+        },
+    ).json()["id"]
+    documento_id = client.post(
+        f"/empresas/{empresa_id}/documentos",
+        files={"arquivos": ("a.pdf", b"conteudo", "application/pdf")},
+    ).json()[0]["documento"]["id"]
+
+    # Cria a classificação inicial (origem MANUAL, sem direção/conta bancária)
+    # via o endpoint normal de correção.
+    resposta = client.patch(
+        f"/documentos/{documento_id}/classificacao", json={"conta_id": conta_contrapartida_id}
+    )
+    assert resposta.status_code == 200
+    assert resposta.json()["direcao"] is None
+
+    # Simula a direção já resolvida pelo worker (Task 4), que este teste não
+    # exercita ponta-a-ponta: seta direcao=PAGAMENTO diretamente no banco.
+    session = session_factory()
+    try:
+        session.execute(
+            text("UPDATE classificacoes SET direcao = 'PAGAMENTO' WHERE documento_id = :doc_id"),
+            {"doc_id": documento_id},
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    resposta = client.patch(
+        f"/documentos/{documento_id}/classificacao/conta-bancaria",
+        json={"conta_bancaria_id": conta_banco_id},
+    )
+
+    assert resposta.status_code == 200
+    corpo = resposta.json()
+    assert corpo["direcao"] == "PAGAMENTO"
+    assert corpo["debito_codigo"] == "1"
+    assert corpo["credito_codigo"] == "2"
+
+
 def test_corrigir_classificacao_documento_inexistente_retorna_404(client, empresa_id):
     plano_id = client.post(
         f"/empresas/{empresa_id}/planos-contas", json={"nome": "Plano"}

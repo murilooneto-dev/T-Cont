@@ -13,7 +13,7 @@ from app.domain.entities import (
     Classificacao, Conta, Documento, Empresa, Extracao, PlanoContas,
 )
 from app.domain.enums import (
-    NaturezaConta, OrigemClassificacao, StatusDocumento, TipoDocumento,
+    DirecaoLancamento, NaturezaConta, OrigemClassificacao, StatusDocumento, TipoDocumento,
 )
 from tests.fakes import (
     FakeClassificacaoRepository,
@@ -125,7 +125,8 @@ def test_linha_completa_traz_extracao_e_classificacao():
             valor=Decimal("150.00"), tipo="PIX", pagador_nome="Tesserato",
             pagador_documento="12345678000199", recebedor_nome="Energisa",
             recebedor_documento="11222333000199", banco_nome="Itau",
-            conta_codigo="1", conta_descricao="Energia", origem="REGRA",
+            debito_codigo=None, debito_descricao=None,
+            credito_codigo=None, credito_descricao=None, origem="REGRA",
         )
     ]
 
@@ -163,8 +164,8 @@ def test_documento_sem_extracao_nem_classificacao_so_traz_o_arquivo():
     assert linha == LinhaExportacao(
         arquivo="solto.pdf", data_pagamento=None, valor=None, tipo=None,
         pagador_nome=None, pagador_documento=None, recebedor_nome=None,
-        recebedor_documento=None, banco_nome=None, conta_codigo=None,
-        conta_descricao=None, origem=None,
+        recebedor_documento=None, banco_nome=None, debito_codigo=None,
+        debito_descricao=None, credito_codigo=None, credito_descricao=None, origem=None,
     )
 
 
@@ -180,9 +181,66 @@ def test_conta_deletada_deixa_colunas_de_conta_vazias_mas_mantem_a_origem():
 
     linha = _use_case(ambiente).executar(ambiente["empresa"].id).linhas[0]
 
-    assert linha.conta_codigo is None
-    assert linha.conta_descricao is None
+    assert linha.debito_codigo is None
+    assert linha.debito_descricao is None
+    assert linha.credito_codigo is None
+    assert linha.credito_descricao is None
     assert linha.origem == "MANUAL"
+
+
+def test_debito_e_credito_resolvidos_a_partir_da_direcao_e_conta_bancaria():
+    ambiente = _ambiente()
+    conta_bancaria = ambiente["conta_repo"].criar(
+        Conta(
+            id=None, plano_conta_id=ambiente["conta"].plano_conta_id, codigo="2",
+            descricao="Banco Itau", natureza=NaturezaConta.ATIVO, conta_analitica=True,
+        )
+    )
+    documento = _documento(ambiente, nome="comprovante.pdf")
+    ambiente["extracao_repo"].criar(
+        Extracao(
+            id=None, documento_id=documento.id, pagador_nome="Tesserato",
+            pagador_documento="12345678000199", recebedor_nome="Energisa",
+            recebedor_documento="11222333000199", valor=Decimal("150.00"),
+            data_pagamento=date(2026, 9, 18), tipo_documento=TipoDocumento.PIX,
+            banco_nome="Itau",
+        )
+    )
+    ambiente["classificacao_repo"].criar(
+        Classificacao(
+            id=None, empresa_id=ambiente["empresa"].id, documento_id=documento.id,
+            conta_id=ambiente["conta"].id, origem=OrigemClassificacao.REGRA,
+            conta_bancaria_id=conta_bancaria.id, direcao=DirecaoLancamento.PAGAMENTO,
+        )
+    )
+
+    linha = _use_case(ambiente).executar(ambiente["empresa"].id).linhas[0]
+
+    assert linha.debito_codigo == ambiente["conta"].codigo
+    assert linha.debito_descricao == ambiente["conta"].descricao
+    assert linha.credito_codigo == conta_bancaria.codigo
+    assert linha.credito_descricao == conta_bancaria.descricao
+
+
+def test_documento_concluido_sem_classificacao_traz_colunas_de_conta_vazias():
+    ambiente = _ambiente()
+    documento = _documento(ambiente, nome="sem_classificacao.pdf")
+    ambiente["extracao_repo"].criar(
+        Extracao(
+            id=None, documento_id=documento.id, pagador_nome="Tesserato",
+            pagador_documento="12345678000199", recebedor_nome="Energisa",
+            recebedor_documento="11222333000199", valor=Decimal("150.00"),
+            data_pagamento=date(2026, 9, 18), tipo_documento=TipoDocumento.PIX,
+            banco_nome="Itau",
+        )
+    )
+
+    linha = _use_case(ambiente).executar(ambiente["empresa"].id).linhas[0]
+
+    assert linha.debito_codigo is None
+    assert linha.debito_descricao is None
+    assert linha.credito_codigo is None
+    assert linha.credito_descricao is None
 
 
 def test_nao_inclui_documentos_de_outra_empresa():
