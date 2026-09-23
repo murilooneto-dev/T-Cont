@@ -5,6 +5,7 @@ from app.application.repositories import (
     ClassificacaoRepository,
     ContaRepository,
     DocumentoRepository,
+    EmpresaRepository,
     ExtracaoRepository,
     PlanoContasRepository,
     RegraRepository,
@@ -16,7 +17,11 @@ from app.core.exceptions import (
     DocumentoNaoEncontrado,
 )
 from app.domain.entities import Aprendizado, Classificacao, Regra
-from app.domain.enums import LadoRegra, OrigemClassificacao
+from app.domain.enums import DirecaoLancamento, LadoRegra, NaturezaConta, OrigemClassificacao
+from app.infrastructure.classificacao.lancamento_contabil import (
+    resolver_conta_bancaria,
+    resolver_direcao,
+)
 
 
 def _validar_conta(conta_repo, plano_repo, conta_id: int, empresa_id: int) -> None:
@@ -42,6 +47,7 @@ class CorrigirClassificacaoUseCase:
         aprendizado_repo: AprendizadoRepository,
         conta_repo: ContaRepository,
         plano_repo: PlanoContasRepository,
+        empresa_repo: EmpresaRepository,
     ):
         self._documento_repo = documento_repo
         self._extracao_repo = extracao_repo
@@ -50,6 +56,7 @@ class CorrigirClassificacaoUseCase:
         self._aprendizado_repo = aprendizado_repo
         self._conta_repo = conta_repo
         self._plano_repo = plano_repo
+        self._empresa_repo = empresa_repo
 
     def executar(self, documento_id: int, conta_id: int) -> Classificacao:
         documento = self._documento_repo.obter_por_id(documento_id)
@@ -78,11 +85,12 @@ class CorrigirClassificacaoUseCase:
             classificacao_existente.score_similaridade = None
             classificacao_final = self._classificacao_repo.atualizar(classificacao_existente)
         else:
+            direcao, conta_bancaria_id = self._resolver_direcao_e_conta_bancaria(documento)
             classificacao_final = self._classificacao_repo.criar(
                 Classificacao(
                     id=None, empresa_id=documento.empresa_id, documento_id=documento_id,
                     conta_id=conta_id, origem=OrigemClassificacao.MANUAL, regra_id=regra_id,
-                    score_similaridade=None,
+                    score_similaridade=None, conta_bancaria_id=conta_bancaria_id, direcao=direcao,
                 )
             )
 
@@ -94,6 +102,40 @@ class CorrigirClassificacaoUseCase:
             )
         )
         return classificacao_final
+
+    def _resolver_direcao_e_conta_bancaria(
+        self, documento
+    ) -> tuple[DirecaoLancamento | None, int | None]:
+        """Resolve direção e conta bancária pro mesmo padrão usado pelo worker
+        (`_processar_comprovante` em `lote_worker.py`) — necessário aqui porque
+        uma classificação manual "do zero" (sem classificação prévia de
+        REGRA/IA/FUZZY) nunca passa pelo worker, e sem isto o lançamento
+        ficaria permanentemente incompleto e sem forma de ser corrigido depois
+        (a correção manual de conta bancária exige `direcao` não-None).
+        """
+        extracao = self._extracao_repo.obter_por_documento_id(documento.id)
+        if extracao is None:
+            return None, None
+
+        empresa = self._empresa_repo.obter_por_id(documento.empresa_id)
+        if empresa is None:
+            return None, None
+
+        direcao = resolver_direcao(empresa.cnpj, extracao)
+        conta_bancaria_id = None
+        if extracao.banco_nome is not None:
+            contas_bancarias = self._listar_contas_bancarias(documento.empresa_id)
+            conta_bancaria_id = resolver_conta_bancaria(extracao.banco_nome, contas_bancarias)
+        return direcao, conta_bancaria_id
+
+    def _listar_contas_bancarias(self, empresa_id: int) -> list:
+        contas = []
+        for plano in self._plano_repo.listar_por_empresa(empresa_id):
+            contas.extend(
+                c for c in self._conta_repo.listar_por_plano(plano.id)
+                if c.conta_analitica and c.natureza == NaturezaConta.ATIVO
+            )
+        return contas
 
     def _documento_fiscal_do_recebedor_ou_pagador(
         self, documento_id: int

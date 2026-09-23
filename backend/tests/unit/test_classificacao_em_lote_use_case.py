@@ -1,12 +1,12 @@
 from app.application.use_cases.classificacao_use_cases import (
     CorrigirClassificacaoEmLoteUseCase, CorrigirClassificacaoUseCase,
 )
-from app.domain.entities import Conta, Documento, NaturezaConta, PlanoContas
+from app.domain.entities import Conta, Documento, Empresa, NaturezaConta, PlanoContas
 from app.domain.enums import OrigemClassificacao
 from tests.fakes import (
     FakeAprendizadoRepository, FakeClassificacaoRepository, FakeContaRepository,
-    FakeDocumentoRepository, FakeExtracaoRepository, FakePlanoContasRepository,
-    FakeRegraRepository,
+    FakeDocumentoRepository, FakeEmpresaRepository, FakeExtracaoRepository,
+    FakePlanoContasRepository, FakeRegraRepository,
 )
 
 
@@ -18,7 +18,11 @@ def _ambiente():
     aprendizado_repo = FakeAprendizadoRepository()
     conta_repo = FakeContaRepository()
     plano_repo = FakePlanoContasRepository()
+    empresa_repo = FakeEmpresaRepository()
 
+    empresa_repo.criar(
+        Empresa(id=None, razao_social="Empresa Teste", nome_fantasia=None, cnpj="00000000000000")
+    )
     plano = plano_repo.criar(PlanoContas(id=None, empresa_id=1, nome="Plano"))
     conta = conta_repo.criar(
         Conta(
@@ -37,7 +41,7 @@ def _ambiente():
     ]
     corrigir_use_case = CorrigirClassificacaoUseCase(
         documento_repo, extracao_repo, classificacao_repo, regra_repo,
-        aprendizado_repo, conta_repo, plano_repo,
+        aprendizado_repo, conta_repo, plano_repo, empresa_repo,
     )
     return {"corrigir_use_case": corrigir_use_case, "conta": conta, "documentos": documentos}
 
