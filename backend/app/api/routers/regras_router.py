@@ -15,6 +15,7 @@ from app.core.exceptions import (
     ContaNaoEncontrada,
     ContaNaoPertenceAEmpresa,
     RegraDocumentoFiscalInvalido,
+    RegraEmUso,
     RegraNaoEncontrada,
     RegraSemCondicoes,
     RegraSemLadoAlvo,
@@ -110,3 +111,5 @@ def deletar_regra(empresa_id: int, regra_id: int, db: Session = Depends(get_db))
         DeletarRegraUseCase(repo).executar(empresa_id, regra_id)
     except RegraNaoEncontrada as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RegraEmUso as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

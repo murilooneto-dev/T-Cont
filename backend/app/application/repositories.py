@@ -70,6 +70,9 @@ class DocumentoRepository(ABC):
     @abstractmethod
     def atualizar(self, documento: Documento) -> Documento: ...
 
+    @abstractmethod
+    def deletar(self, documento_id: int) -> None: ...
+
 
 class OcrResultadoRepository(ABC):
     @abstractmethod
@@ -77,6 +80,9 @@ class OcrResultadoRepository(ABC):
 
     @abstractmethod
     def obter_por_documento_id(self, documento_id: int) -> OcrResultado | None: ...
+
+    @abstractmethod
+    def deletar_por_documento_id(self, documento_id: int) -> None: ...
 
 
 class LoteProcessamentoRepository(ABC):
@@ -96,6 +102,9 @@ class ExtracaoRepository(ABC):
 
     @abstractmethod
     def obter_por_documento_id(self, documento_id: int) -> Extracao | None: ...
+
+    @abstractmethod
+    def deletar_por_documento_id(self, documento_id: int) -> None: ...
 
 
 class RegraRepository(ABC):
@@ -128,6 +137,9 @@ class ClassificacaoRepository(ABC):
     @abstractmethod
     def atualizar(self, classificacao: Classificacao) -> Classificacao: ...
 
+    @abstractmethod
+    def deletar_por_documento_id(self, documento_id: int) -> None: ...
+
 
 class AprendizadoRepository(ABC):
     @abstractmethod
@@ -135,3 +147,6 @@ class AprendizadoRepository(ABC):
 
     @abstractmethod
     def listar_por_empresa(self, empresa_id: int) -> list[Aprendizado]: ...
+
+    @abstractmethod
+    def deletar_por_documento_id(self, documento_id: int) -> None: ...

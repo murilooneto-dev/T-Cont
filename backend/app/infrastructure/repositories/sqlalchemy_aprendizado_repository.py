@@ -45,3 +45,7 @@ class SqlAlchemyAprendizadoRepository(AprendizadoRepository):
             self._session.query(AprendizadoModel).filter_by(empresa_id=empresa_id).all()
         )
         return [_to_entity(m) for m in models]
+
+    def deletar_por_documento_id(self, documento_id: int) -> None:
+        self._session.query(AprendizadoModel).filter_by(documento_id=documento_id).delete()
+        self._session.flush()

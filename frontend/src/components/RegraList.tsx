@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { api } from "../api/client";
 import type { Conta } from "../types/planoContas";
 import type { Regra } from "../types/regra";
@@ -45,9 +46,16 @@ export function RegraList({
     onChanged(regras.map((r) => (r.id === atualizada.id ? atualizada : r)));
   }
 
+  const [erro, setErro] = useState<string | null>(null);
+
   async function apagar(regraId: number) {
-    await api.regras.remove(empresaId, regraId);
-    onChanged(regras.filter((r) => r.id !== regraId));
+    setErro(null);
+    try {
+      await api.regras.remove(empresaId, regraId);
+      onChanged(regras.filter((r) => r.id !== regraId));
+    } catch (err) {
+      setErro((err as Error).message);
+    }
   }
 
   if (regras.length === 0) {
@@ -55,6 +63,8 @@ export function RegraList({
   }
 
   return (
+    <div className="flex flex-col gap-1">
+    {erro && <p className="text-xs text-red-600">{erro}</p>}
     <ul className="flex flex-col gap-1">
       {regras.map((regra) => (
         <li
@@ -84,5 +94,6 @@ export function RegraList({
         </li>
       ))}
     </ul>
+    </div>
   );
 }

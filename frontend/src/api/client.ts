@@ -80,6 +80,16 @@ export const api = {
       }),
     filaRevisao: (empresaId: number) =>
       request<ItemFilaRevisao[]>(`/empresas/${empresaId}/documentos/fila-revisao`),
+    limparFilaRevisao: (empresaId: number) =>
+      request<{ documentos_apagados: number }>(
+        `/empresas/${empresaId}/documentos/fila-revisao`,
+        { method: "DELETE" },
+      ),
+    limparProcessados: (empresaId: number) =>
+      request<{ documentos_apagados: number }>(
+        `/empresas/${empresaId}/documentos/processados`,
+        { method: "DELETE" },
+      ),
     corrigirClassificacaoLote: (documentoIds: number[], contaId: number) =>
       request<CorrecaoLoteResultado>("/documentos/classificacao/lote", {
         method: "PATCH",
