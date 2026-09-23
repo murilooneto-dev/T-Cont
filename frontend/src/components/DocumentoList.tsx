@@ -42,6 +42,15 @@ export function DocumentoList({
     setResultadoAberto({ ...resultadoAberto, classificacao });
   }
 
+  async function corrigirContaBancaria(contaBancariaId: number) {
+    if (resultadoAberto === null) return;
+    const classificacao = await api.documentos.corrigirContaBancaria(
+      resultadoAberto.documento.id,
+      contaBancariaId,
+    );
+    setResultadoAberto({ ...resultadoAberto, classificacao });
+  }
+
   if (documentos.length === 0) {
     return <p className="text-sm text-slate-500">Nenhum documento enviado ainda.</p>;
   }
@@ -101,6 +110,7 @@ export function DocumentoList({
               classificacao={resultadoAberto.classificacao}
               contas={contas}
               onCorrigir={corrigirClassificacao}
+              onCorrigirContaBancaria={corrigirContaBancaria}
             />
           </div>
           <p className="mb-1 font-semibold">

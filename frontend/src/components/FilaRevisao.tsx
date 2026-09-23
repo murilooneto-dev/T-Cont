@@ -13,6 +13,11 @@ function paraClassificacaoView(item: ItemFilaRevisao): Classificacao | null {
     origem: "FUZZY",
     regra_id: null,
     score_similaridade: item.classificacao_sugerida.score_similaridade,
+    direcao: null,
+    debito_codigo: null,
+    debito_descricao: null,
+    credito_codigo: null,
+    credito_descricao: null,
   };
 }
 
@@ -63,6 +68,20 @@ export function FilaRevisao({
   async function confirmar(documentoId: number, contaId: number) {
     try {
       await api.documentos.corrigirClassificacao(documentoId, contaId);
+      const errosRestantes = { ...errosLote };
+      delete errosRestantes[documentoId];
+      carregarFila(undefined, errosRestantes);
+    } catch (err) {
+      setErrosLote((atual) => ({
+        ...atual,
+        [documentoId]: (err as Error).message,
+      }));
+    }
+  }
+
+  async function confirmarContaBancaria(documentoId: number, contaBancariaId: number) {
+    try {
+      await api.documentos.corrigirContaBancaria(documentoId, contaBancariaId);
       const errosRestantes = { ...errosLote };
       delete errosRestantes[documentoId];
       carregarFila(undefined, errosRestantes);
@@ -172,6 +191,9 @@ export function FilaRevisao({
                   classificacao={paraClassificacaoView(item)}
                   contas={contas}
                   onCorrigir={(contaId) => confirmar(item.documento.id, contaId)}
+                  onCorrigirContaBancaria={(contaBancariaId) =>
+                    confirmarContaBancaria(item.documento.id, contaBancariaId)
+                  }
                 />
               </div>
               {item.classificacao_sugerida && (

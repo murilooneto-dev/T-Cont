@@ -19,12 +19,15 @@ export function CorrecaoClassificacao({
   classificacao,
   contas,
   onCorrigir,
+  onCorrigirContaBancaria,
 }: {
   classificacao: Classificacao | null;
   contas: Conta[];
   onCorrigir: (contaId: number) => Promise<void>;
+  onCorrigirContaBancaria: (contaBancariaId: number) => Promise<void>;
 }) {
   const [contaCorrecaoId, setContaCorrecaoId] = useState<number | "">("");
+  const [contaBancariaId, setContaBancariaId] = useState<number | "">("");
   const [erro, setErro] = useState<string | null>(null);
 
   async function handleCorrigir() {
@@ -38,19 +41,47 @@ export function CorrecaoClassificacao({
     }
   }
 
+  async function handleCorrigirContaBancaria() {
+    if (contaBancariaId === "") return;
+    setErro(null);
+    try {
+      await onCorrigirContaBancaria(contaBancariaId);
+      setContaBancariaId("");
+    } catch (err) {
+      setErro((err as Error).message);
+    }
+  }
+
+  const contasBancarias = contas.filter(
+    (conta) => conta.conta_analitica && conta.natureza === "ATIVO",
+  );
+  const precisaDeContaBancaria = classificacao !== null && classificacao.direcao !== null
+    && (classificacao.debito_codigo === null || classificacao.credito_codigo === null);
+
   return (
     <div className="rounded border border-slate-200 bg-white p-2">
-      <span className="font-semibold">Classificação: </span>
       {classificacao ? (
-        <span>
-          {classificacao.conta_codigo} — {classificacao.conta_descricao} (
-          {rotuloOrigem(classificacao.origem)}
-          {classificacao.score_similaridade !== null &&
-            ` — ${Math.round(classificacao.score_similaridade * 100)}%`}
-          )
-        </span>
+        <div>
+          <p>
+            <span className="font-semibold">Débito: </span>
+            {classificacao.debito_codigo
+              ? `${classificacao.debito_codigo} — ${classificacao.debito_descricao}`
+              : "—"}
+          </p>
+          <p>
+            <span className="font-semibold">Crédito: </span>
+            {classificacao.credito_codigo
+              ? `${classificacao.credito_codigo} — ${classificacao.credito_descricao}`
+              : "—"}
+          </p>
+          <p className="text-slate-500">
+            {rotuloOrigem(classificacao.origem)}
+            {classificacao.score_similaridade !== null &&
+              ` — ${Math.round(classificacao.score_similaridade * 100)}%`}
+          </p>
+        </div>
       ) : (
-        <span>SEM CLASSIFICAÇÃO</span>
+        <span className="font-semibold">SEM CLASSIFICAÇÃO</span>
       )}
       <div className="mt-2 flex items-center gap-2">
         <select
@@ -75,6 +106,29 @@ export function CorrecaoClassificacao({
           Corrigir
         </button>
       </div>
+      {precisaDeContaBancaria && (
+        <div className="mt-2 flex items-center gap-2">
+          <select
+            className="rounded border border-slate-300 px-2 py-1 text-xs"
+            value={contaBancariaId}
+            onChange={(e) => setContaBancariaId(e.target.value ? Number(e.target.value) : "")}
+          >
+            <option value="">Conta bancária...</option>
+            {contasBancarias.map((conta) => (
+              <option key={conta.id} value={conta.id}>
+                {conta.codigo} — {conta.descricao}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleCorrigirContaBancaria}
+            disabled={contaBancariaId === ""}
+            className="rounded bg-slate-800 px-2 py-1 text-xs text-white disabled:opacity-50"
+          >
+            Corrigir conta bancária
+          </button>
+        </div>
+      )}
       {erro && <p className="mt-1 text-red-600">{erro}</p>}
     </div>
   );
