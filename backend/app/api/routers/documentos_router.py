@@ -160,6 +160,12 @@ def listar_fila_revisao(empresa_id: int, db: Session = Depends(get_db)):
                     conta_codigo=item.sugestao.conta_codigo,
                     conta_descricao=item.sugestao.conta_descricao,
                     score_similaridade=item.sugestao.score_similaridade,
+                    origem=item.sugestao.origem,
+                    direcao=item.sugestao.direcao,
+                    debito_codigo=item.sugestao.debito_codigo,
+                    debito_descricao=item.sugestao.debito_descricao,
+                    credito_codigo=item.sugestao.credito_codigo,
+                    credito_descricao=item.sugestao.credito_descricao,
                 )
                 if item.sugestao
                 else None
@@ -240,9 +246,10 @@ def corrigir_classificacao_em_lote(
     aprendizado_repo = SqlAlchemyAprendizadoRepository(db)
     conta_repo = SqlAlchemyContaRepository(db)
     plano_repo = SqlAlchemyPlanoContasRepository(db)
+    empresa_repo = SqlAlchemyEmpresaRepository(db)
     corrigir_use_case = CorrigirClassificacaoUseCase(
         documento_repo, extracao_repo, classificacao_repo, regra_repo,
-        aprendizado_repo, conta_repo, plano_repo,
+        aprendizado_repo, conta_repo, plano_repo, empresa_repo,
     )
     resultados = CorrigirClassificacaoEmLoteUseCase(corrigir_use_case).executar(
         payload.documento_ids, payload.conta_id
@@ -280,10 +287,11 @@ def corrigir_classificacao(
     aprendizado_repo = SqlAlchemyAprendizadoRepository(db)
     conta_repo = SqlAlchemyContaRepository(db)
     plano_repo = SqlAlchemyPlanoContasRepository(db)
+    empresa_repo = SqlAlchemyEmpresaRepository(db)
     try:
         classificacao = CorrigirClassificacaoUseCase(
             documento_repo, extracao_repo, classificacao_repo, regra_repo,
-            aprendizado_repo, conta_repo, plano_repo,
+            aprendizado_repo, conta_repo, plano_repo, empresa_repo,
         ).executar(documento_id, payload.conta_id)
     except DocumentoNaoEncontrado as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

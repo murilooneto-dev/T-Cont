@@ -114,6 +114,12 @@ class ClassificacaoSugeridaOut(BaseModel):
     conta_codigo: str
     conta_descricao: str
     score_similaridade: float | None
+    origem: OrigemClassificacao | None = None
+    direcao: DirecaoLancamento | None = None
+    debito_codigo: str | None = None
+    debito_descricao: str | None = None
+    credito_codigo: str | None = None
+    credito_descricao: str | None = None
 
 
 class ItemFilaRevisaoOut(BaseModel):

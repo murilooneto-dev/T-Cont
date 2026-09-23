@@ -4,7 +4,8 @@ from app.application.repositories import (
     ClassificacaoRepository, ContaRepository, DocumentoRepository, ExtracaoRepository,
 )
 from app.domain.entities import Documento, Extracao
-from app.domain.enums import OrigemClassificacao, StatusDocumento
+from app.domain.enums import DirecaoLancamento, OrigemClassificacao, StatusDocumento
+from app.infrastructure.classificacao.lancamento_contabil import resolver_lados_lancamento
 
 
 @dataclass
@@ -13,6 +14,12 @@ class SugestaoFilaRevisao:
     conta_codigo: str
     conta_descricao: str
     score_similaridade: float | None
+    origem: OrigemClassificacao | None = None
+    direcao: DirecaoLancamento | None = None
+    debito_codigo: str | None = None
+    debito_descricao: str | None = None
+    credito_codigo: str | None = None
+    credito_descricao: str | None = None
 
 
 @dataclass
@@ -52,11 +59,25 @@ class ListarFilaRevisaoUseCase:
             if classificacao is not None:
                 conta = self._conta_repo.obter_por_id(classificacao.conta_id)
                 if conta is not None:
+                    conta_bancaria = (
+                        self._conta_repo.obter_por_id(classificacao.conta_bancaria_id)
+                        if classificacao.conta_bancaria_id is not None
+                        else None
+                    )
+                    conta_debito, conta_credito = resolver_lados_lancamento(
+                        classificacao.direcao, conta, conta_bancaria
+                    )
                     sugestao = SugestaoFilaRevisao(
                         conta_id=conta.id,
                         conta_codigo=conta.codigo,
                         conta_descricao=conta.descricao,
                         score_similaridade=classificacao.score_similaridade,
+                        origem=classificacao.origem,
+                        direcao=classificacao.direcao,
+                        debito_codigo=conta_debito.codigo if conta_debito else None,
+                        debito_descricao=conta_debito.descricao if conta_debito else None,
+                        credito_codigo=conta_credito.codigo if conta_credito else None,
+                        credito_descricao=conta_credito.descricao if conta_credito else None,
                     )
 
             extracao = self._extracao_repo.obter_por_documento_id(documento.id)

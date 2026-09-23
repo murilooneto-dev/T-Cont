@@ -80,6 +80,12 @@ export interface ClassificacaoSugerida {
   conta_codigo: string;
   conta_descricao: string;
   score_similaridade: number | null;
+  origem: OrigemClassificacao | null;
+  direcao: DirecaoLancamento | null;
+  debito_codigo: string | null;
+  debito_descricao: string | null;
+  credito_codigo: string | null;
+  credito_descricao: string | null;
 }
 
 export interface ItemFilaRevisao {

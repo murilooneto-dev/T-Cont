@@ -122,6 +122,7 @@ def test_classificacao_fuzzy_entra_na_fila_com_sugestao():
     assert item.sugestao.conta_codigo == "1"
     assert item.sugestao.conta_descricao == "Energia"
     assert item.sugestao.score_similaridade == 0.42
+    assert item.sugestao.origem == OrigemClassificacao.FUZZY
 
 
 def test_filtra_apenas_pela_empresa_informada():
@@ -153,6 +154,36 @@ def test_classificacao_por_regra_com_direcao_e_conta_bancaria_faltando_entra_na_
 
     assert len(itens) == 1
     assert itens[0].documento.id == documento.id
+    sugestao = itens[0].sugestao
+    assert sugestao is not None
+    assert sugestao.origem == OrigemClassificacao.REGRA
+    assert sugestao.direcao is None
+    assert sugestao.debito_codigo is None
+    assert sugestao.credito_codigo is None
+
+
+def test_classificacao_por_regra_com_direcao_resolvida_mas_banco_faltando_expoe_lado_da_contrapartida():
+    ambiente = _ambiente()
+    documento = _documento(ambiente)
+    ambiente["classificacao_repo"].criar(
+        Classificacao(
+            id=None, empresa_id=1, documento_id=documento.id, conta_id=ambiente["conta"].id,
+            origem=OrigemClassificacao.REGRA, direcao=DirecaoLancamento.PAGAMENTO,
+            conta_bancaria_id=None,
+        )
+    )
+
+    itens = _use_case(ambiente).executar(1)
+
+    assert len(itens) == 1
+    sugestao = itens[0].sugestao
+    assert sugestao is not None
+    assert sugestao.origem == OrigemClassificacao.REGRA
+    assert sugestao.direcao == DirecaoLancamento.PAGAMENTO
+    # Direção PAGAMENTO: contrapartida (conta) entra no débito, o crédito
+    # (conta bancária) ainda não foi resolvido.
+    assert sugestao.debito_codigo == ambiente["conta"].codigo
+    assert sugestao.credito_codigo is None
 
 
 def test_classificacao_por_ia_com_conta_bancaria_resolvida_mas_direcao_faltando_entra_na_fila():
